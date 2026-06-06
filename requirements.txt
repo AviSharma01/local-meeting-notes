@@ -1,4 +1,6 @@
-streamlit
+typer
+rich
+ollama
 requests
 pytest
 python-dotenv
