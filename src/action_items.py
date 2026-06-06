@@ -5,9 +5,10 @@ ACTION_ITEMS_FILENAME = "Action Items.md"
 
 
 def extract_action_items(markdown_note: str) -> list[str]:
-    """Extract top-level checkbox action items from Markdown."""
+    """Extract top-level checkbox action items from the Action Items section."""
     action_items = []
     current_item = []
+    in_action_items_section = False
 
     def flush_current_item() -> None:
         if current_item:
@@ -15,6 +16,19 @@ def extract_action_items(markdown_note: str) -> list[str]:
             current_item.clear()
 
     for line in markdown_note.splitlines():
+        if line.strip() == "## Action Items":
+            flush_current_item()
+            in_action_items_section = True
+            continue
+
+        if in_action_items_section and line.startswith("## "):
+            flush_current_item()
+            in_action_items_section = False
+            continue
+
+        if not in_action_items_section:
+            continue
+
         if line.startswith("- [ ]"):
             flush_current_item()
             current_item.append(line)

@@ -20,7 +20,7 @@ def test_preview_command_still_works():
 
 
 def test_summarize_command_generates_and_saves_note(monkeypatch, tmp_path):
-    generated_notes = "# Summary\n\nLaunch stays on track."
+    generated_notes = "\n\n# Summary\n\nLaunch stays on track.\n\n"
     captured = {}
 
     def fake_generate_meeting_notes(transcript, model):
@@ -52,7 +52,16 @@ def test_summarize_command_generates_and_saves_note(monkeypatch, tmp_path):
     assert "Launch stays on track." in result.output
     assert "sample-meeting.md" in result.output
     assert "No action items found; Action Items.md was not updated." in result.output
-    assert note_path.read_text(encoding="utf-8") == generated_notes
+    saved_note = note_path.read_text(encoding="utf-8")
+    assert saved_note.startswith("---\n")
+    assert "type: meeting-note" in saved_note
+    assert "source: local-transcript" in saved_note
+    assert "model: qwen2.5:7b" in saved_note
+    assert "tags:\n  - meeting-notes" in saved_note
+    assert "# Meeting Notes: Sample Meeting" in saved_note
+    assert "# Summary\n\nLaunch stays on track." in saved_note
+    assert saved_note.endswith("Launch stays on track.")
+    assert "```" not in saved_note
     assert not (tmp_path / "Action Items.md").exists()
 
 
@@ -81,6 +90,10 @@ def test_summarize_command_passes_selected_model(monkeypatch, tmp_path):
 
     assert result.exit_code == 0
     assert captured["model"] == "test-model"
+    saved_note = (tmp_path / safe_filename("Sample Meeting")).read_text(
+        encoding="utf-8"
+    )
+    assert "model: test-model" in saved_note
 
 
 def test_summarize_command_uses_out_as_output_folder(monkeypatch, tmp_path):
@@ -150,6 +163,10 @@ Launch planning happened.
     assert "## From [[Sample Meeting]]" in action_items_content
     assert "- [ ] Send launch notes" in action_items_content
     assert "  - Source: [[Sample Meeting]]" in action_items_content
+
+    saved_note = note_path.read_text(encoding="utf-8")
+    assert "# Meeting Notes: Sample Meeting" in saved_note
+    assert "- [ ] Send launch notes" in saved_note
 
 
 def test_summarize_command_does_not_create_action_items_when_none_found(

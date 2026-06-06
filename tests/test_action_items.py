@@ -14,6 +14,36 @@ def test_extract_action_items_extracts_single_checkbox_item():
     ]
 
 
+def test_extract_action_items_ignores_checkbox_items_outside_action_items_section():
+    markdown = """## Key Decisions
+
+- [ ] This should not be appended — Owner: Unknown — Due: Unknown
+
+## Follow-ups
+
+- [ ] This should also be ignored — Owner: Unknown — Due: Unknown
+"""
+
+    assert extract_action_items(markdown) == []
+
+
+def test_extract_action_items_extracts_checkbox_items_inside_action_items_section():
+    markdown = """## Summary
+
+Discussed launch planning.
+
+## Action Items
+
+- [ ] Send launch notes — Owner: Avi — Due: Friday
+  - Evidence: Avi agreed.
+"""
+
+    assert extract_action_items(markdown) == [
+        "- [ ] Send launch notes — Owner: Avi — Due: Friday\n"
+        "  - Evidence: Avi agreed."
+    ]
+
+
 def test_extract_action_items_extracts_multiple_checkbox_items_in_order():
     markdown = """## Action Items
 
@@ -44,7 +74,9 @@ def test_extract_action_items_includes_indented_evidence_lines():
 
 
 def test_extract_action_items_stops_before_heading_or_top_level_bullet():
-    markdown = """- [ ] Review QA plan — Owner: Sam — Due: Monday
+    markdown = """## Action Items
+
+- [ ] Review QA plan — Owner: Sam — Due: Monday
   - Evidence: Sam said he can own QA.
 ## Follow-ups
 - Not a checkbox item
@@ -55,7 +87,23 @@ def test_extract_action_items_stops_before_heading_or_top_level_bullet():
     assert extract_action_items(markdown) == [
         "- [ ] Review QA plan — Owner: Sam — Due: Monday\n"
         "  - Evidence: Sam said he can own QA.",
-        "- [ ] Confirm release notes — Owner: Unknown — Due: Unknown",
+    ]
+
+
+def test_extract_action_items_stops_at_next_level_two_heading():
+    markdown = """## Action Items
+
+- [ ] Send notes — Owner: Avi — Due: Friday
+  - Evidence: Avi agreed.
+
+## Risks / Blockers
+
+- [ ] This checkbox is outside action items — Owner: Unknown — Due: Unknown
+"""
+
+    assert extract_action_items(markdown) == [
+        "- [ ] Send notes — Owner: Avi — Due: Friday\n"
+        "  - Evidence: Avi agreed."
     ]
 
 
@@ -69,7 +117,10 @@ No action items were identified.
 
 
 def test_append_action_items_creates_action_items_file(tmp_path):
-    markdown = "- [ ] Send notes — Owner: Avi — Due: Friday"
+    markdown = """## Action Items
+
+- [ ] Send notes — Owner: Avi — Due: Friday
+"""
 
     action_items_path = append_action_items(str(tmp_path), "Sample Meeting", markdown)
 
@@ -85,7 +136,7 @@ def test_append_action_items_preserves_existing_content(tmp_path):
     append_action_items(
         str(tmp_path),
         "Sample Meeting",
-        "- [ ] Send notes — Owner: Avi — Due: Friday",
+        "## Action Items\n\n- [ ] Send notes — Owner: Avi — Due: Friday",
     )
 
     content = action_items_path.read_text(encoding="utf-8")
@@ -104,7 +155,7 @@ def test_append_action_items_adds_source_line(tmp_path):
     append_action_items(
         str(tmp_path),
         "Sample Meeting",
-        "- [ ] Send notes — Owner: Avi — Due: Friday",
+        "## Action Items\n\n- [ ] Send notes — Owner: Avi — Due: Friday",
     )
 
     content = (tmp_path / "Action Items.md").read_text(encoding="utf-8")
@@ -112,7 +163,9 @@ def test_append_action_items_adds_source_line(tmp_path):
 
 
 def test_append_action_items_does_not_add_duplicate_source_line(tmp_path):
-    markdown = """- [ ] Send notes — Owner: Avi — Due: Friday
+    markdown = """## Action Items
+
+- [ ] Send notes — Owner: Avi — Due: Friday
   - Evidence: Avi agreed.
   - Source: [[Sample Meeting]]
 """
