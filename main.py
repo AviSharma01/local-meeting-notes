@@ -4,6 +4,7 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 
+from src.action_items import append_action_items
 from src.note_writer import write_markdown_note
 from src.ollama_client import generate_meeting_notes
 from src.transcript_cleaner import clean_transcript
@@ -45,6 +46,7 @@ def summarize(
     cleaned_transcript = clean_transcript(transcript)
     notes = generate_meeting_notes(cleaned_transcript, model=model)
     saved_path = write_markdown_note(str(out), title, notes)
+    action_items_path = append_action_items(out, title, notes)
 
     console.print(
         Panel(
@@ -54,6 +56,10 @@ def summarize(
         )
     )
     console.print(f"Saved note: {saved_path}")
+    if action_items_path:
+        console.print(f"Updated action items: {action_items_path}")
+    else:
+        console.print("No action items found; Action Items.md was not updated.")
 
 
 if __name__ == "__main__":

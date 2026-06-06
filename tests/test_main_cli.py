@@ -51,7 +51,9 @@ def test_summarize_command_generates_and_saves_note(monkeypatch, tmp_path):
     assert "# Summary" in result.output
     assert "Launch stays on track." in result.output
     assert "sample-meeting.md" in result.output
+    assert "No action items found; Action Items.md was not updated." in result.output
     assert note_path.read_text(encoding="utf-8") == generated_notes
+    assert not (tmp_path / "Action Items.md").exists()
 
 
 def test_summarize_command_passes_selected_model(monkeypatch, tmp_path):
@@ -103,3 +105,77 @@ def test_summarize_command_uses_out_as_output_folder(monkeypatch, tmp_path):
 
     assert result.exit_code == 0
     assert (out / Path("nested-meeting.md")).exists()
+
+
+def test_summarize_command_appends_action_items(monkeypatch, tmp_path):
+    generated_notes = """# Summary
+
+Launch planning happened.
+
+## Action Items
+
+- [ ] Send launch notes — Owner: Avi — Due: Friday
+  - Evidence: Avi agreed to send notes.
+"""
+
+    monkeypatch.setattr(
+        main,
+        "generate_meeting_notes",
+        lambda transcript, model: generated_notes,
+    )
+
+    result = runner.invoke(
+        main.app,
+        [
+            "summarize",
+            "tests/fixtures/sample_meeting_short.txt",
+            "--title",
+            "Sample Meeting",
+            "--out",
+            str(tmp_path),
+        ],
+    )
+
+    note_path = tmp_path / safe_filename("Sample Meeting")
+    action_items_path = tmp_path / "Action Items.md"
+
+    assert result.exit_code == 0
+    assert note_path.exists()
+    assert action_items_path.exists()
+    assert "sample-meeting.md" in result.output
+    assert "Updated action items:" in result.output
+    assert "Action Items.md" in result.output
+
+    action_items_content = action_items_path.read_text(encoding="utf-8")
+    assert "## From [[Sample Meeting]]" in action_items_content
+    assert "- [ ] Send launch notes" in action_items_content
+    assert "  - Source: [[Sample Meeting]]" in action_items_content
+
+
+def test_summarize_command_does_not_create_action_items_when_none_found(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.setattr(
+        main,
+        "generate_meeting_notes",
+        lambda transcript, model: "# Summary\n\nNo action items today.",
+    )
+
+    result = runner.invoke(
+        main.app,
+        [
+            "summarize",
+            "tests/fixtures/sample_meeting_short.txt",
+            "--title",
+            "Sample Meeting",
+            "--out",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert (tmp_path / safe_filename("Sample Meeting")).exists()
+    assert not (tmp_path / "Action Items.md").exists()
+    assert "sample-meeting.md" in result.output
+    assert "No action items found; Action Items.md was not updated." in result.output
