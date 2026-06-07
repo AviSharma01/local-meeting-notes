@@ -371,6 +371,74 @@ def test_find_related_notes_includes_useful_reasons():
     assert "Shared content keywords: beta, rollout" in matches[0].reasons
 
 
+def test_find_related_notes_filters_noisy_shared_content_keywords():
+    note = make_note(
+        "Prior Launch",
+        "prior-launch.md",
+        content="Alex said but blockers were just more about process.",
+    )
+
+    matches = find_related_notes(
+        "Current Launch",
+        "Alex said but blockers were just more about process.",
+        [note],
+    )
+
+    content_reason = next(
+        reason
+        for reason in matches[0].reasons
+        if reason.startswith("Shared content keywords:")
+    )
+    assert "alex" not in content_reason
+    assert "but" not in content_reason
+    assert "blockers" not in content_reason
+
+
+def test_find_related_notes_filters_generated_note_boilerplate_keywords():
+    note = make_note(
+        "Prior Launch",
+        "prior-launch.md",
+        content=(
+            "created date dates explicitly mentioned none unknown "
+            "made missing found related score reason reasons section sections "
+            "content generated final note launch"
+        ),
+    )
+
+    matches = find_related_notes(
+        "Current Launch",
+        (
+            "created date dates explicitly mentioned none unknown "
+            "made missing found related score reason reasons section sections "
+            "content generated final note launch"
+        ),
+        [note],
+    )
+
+    content_reason = next(
+        reason
+        for reason in matches[0].reasons
+        if reason.startswith("Shared content keywords:")
+    )
+    assert content_reason == "Shared content keywords: launch"
+
+
+def test_find_related_notes_keeps_meaningful_shared_content_keywords():
+    note = make_note(
+        "Product Review",
+        "product-review.md",
+        content="beta qa dashboard metrics",
+    )
+
+    matches = find_related_notes(
+        "Product Planning",
+        "beta qa dashboard metrics",
+        [note],
+    )
+
+    assert "Shared content keywords: beta, dashboard, metrics" in matches[0].reasons
+
+
 def test_format_wiki_link_uses_filename_stem():
     note = make_note("Sprint Planning", "sprint-planning.md")
 
