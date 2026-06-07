@@ -7,6 +7,11 @@ from rich.panel import Panel
 from src.action_items import append_action_items
 from src.note_writer import write_markdown_note
 from src.ollama_client import generate_meeting_notes
+from src.related_notes import (
+    find_related_notes,
+    format_related_meetings_section,
+    load_meeting_notes,
+)
 from src.transcript_cleaner import clean_transcript
 from src.transcripts import read_transcript
 
@@ -56,12 +61,31 @@ def summarize(
     title: str = typer.Option(..., "--title", help="Meeting title for the saved note."),
     out: Path = typer.Option(..., "--out", help="Output folder for the Markdown note."),
     model: str = typer.Option("qwen2.5:7b", "--model", help="Local Ollama model to use."),
+    link_related: bool = typer.Option(
+        False,
+        "--link-related",
+        help="Link related meeting notes from the output folder.",
+    ),
 ) -> None:
     """Generate and save Markdown meeting notes."""
     transcript = read_transcript(transcript_path)
     cleaned_transcript = clean_transcript(transcript)
     generated_notes = generate_meeting_notes(cleaned_transcript, model=model)
     notes = format_meeting_note(title, model, generated_notes)
+    related_matches_count = 0
+    related_status = None
+
+    if link_related:
+        candidate_notes = load_meeting_notes(out)
+        related_matches = find_related_notes(title, notes, candidate_notes)
+        related_section = format_related_meetings_section(related_matches)
+        if related_section:
+            notes = f"{notes}\n\n{related_section}"
+            related_matches_count = len(related_matches)
+            related_status = f"Added related meetings: {related_matches_count}"
+        else:
+            related_status = "No related meetings found."
+
     saved_path = write_markdown_note(str(out), title, notes)
     action_items_path = append_action_items(out, title, notes)
 
@@ -73,6 +97,8 @@ def summarize(
         )
     )
     console.print(f"Saved note: {saved_path}")
+    if related_status:
+        console.print(related_status)
     if action_items_path:
         console.print(f"Updated action items: {action_items_path}")
     else:

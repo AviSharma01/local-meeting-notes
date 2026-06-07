@@ -196,3 +196,165 @@ def test_summarize_command_does_not_create_action_items_when_none_found(
     assert not (tmp_path / "Action Items.md").exists()
     assert "sample-meeting.md" in result.output
     assert "No action items found; Action Items.md was not updated." in result.output
+
+
+def test_summarize_command_does_not_load_related_notes_without_flag(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.setattr(
+        main,
+        "generate_meeting_notes",
+        lambda transcript, model: "# Summary\n\nLaunch stays on track.",
+    )
+
+    def fail_if_called(out):
+        raise AssertionError("load_meeting_notes should not be called")
+
+    monkeypatch.setattr(main, "load_meeting_notes", fail_if_called)
+
+    result = runner.invoke(
+        main.app,
+        [
+            "summarize",
+            "tests/fixtures/sample_meeting_short.txt",
+            "--title",
+            "Sample Meeting",
+            "--out",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "No related meetings found." not in result.output
+
+
+def test_summarize_command_link_related_adds_related_meetings_section(
+    monkeypatch,
+    tmp_path,
+):
+    previous_note = tmp_path / "sample-retro.md"
+    previous_note.write_text(
+        """---
+tags: [launch]
+---
+
+# Sample Retro
+
+## Summary
+
+Discussed launch QA.
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        main,
+        "generate_meeting_notes",
+        lambda transcript, model: "# Summary\n\nLaunch QA stayed on track.",
+    )
+
+    result = runner.invoke(
+        main.app,
+        [
+            "summarize",
+            "tests/fixtures/sample_meeting_short.txt",
+            "--title",
+            "Sample Meeting",
+            "--out",
+            str(tmp_path),
+            "--link-related",
+        ],
+    )
+
+    saved_note = (tmp_path / safe_filename("Sample Meeting")).read_text(
+        encoding="utf-8"
+    )
+
+    assert result.exit_code == 0
+    assert "Added related meetings: 1" in result.output
+    assert "## Related Meetings" in saved_note
+    assert "[[sample-retro]]" in saved_note
+
+
+def test_summarize_command_link_related_with_no_matches_adds_no_empty_section(
+    monkeypatch,
+    tmp_path,
+):
+    previous_note = tmp_path / "budget-review.md"
+    previous_note.write_text(
+        "# Budget Review\n\n## Summary\n\nDiscussed finance forecasts.",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        main,
+        "generate_meeting_notes",
+        lambda transcript, model: "# Summary\n\nLaunch QA stayed on track.",
+    )
+
+    result = runner.invoke(
+        main.app,
+        [
+            "summarize",
+            "tests/fixtures/sample_meeting_short.txt",
+            "--title",
+            "Sample Meeting",
+            "--out",
+            str(tmp_path),
+            "--link-related",
+        ],
+    )
+
+    saved_note = (tmp_path / safe_filename("Sample Meeting")).read_text(
+        encoding="utf-8"
+    )
+
+    assert result.exit_code == 0
+    assert "No related meetings found." in result.output
+    assert "## Related Meetings" not in saved_note
+
+
+def test_summarize_command_appends_action_items_when_related_meetings_are_added(
+    monkeypatch,
+    tmp_path,
+):
+    (tmp_path / "sample-retro.md").write_text(
+        "# Sample Retro\n\n## Summary\n\nDiscussed launch QA.",
+        encoding="utf-8",
+    )
+    generated_notes = """# Summary
+
+Launch QA stayed on track.
+
+## Action Items
+
+- [ ] Send launch notes — Owner: Avi — Due: Friday
+  - Evidence: Avi agreed to send notes.
+"""
+    monkeypatch.setattr(
+        main,
+        "generate_meeting_notes",
+        lambda transcript, model: generated_notes,
+    )
+
+    result = runner.invoke(
+        main.app,
+        [
+            "summarize",
+            "tests/fixtures/sample_meeting_short.txt",
+            "--title",
+            "Sample Meeting",
+            "--out",
+            str(tmp_path),
+            "--link-related",
+        ],
+    )
+
+    saved_note = (tmp_path / safe_filename("Sample Meeting")).read_text(
+        encoding="utf-8"
+    )
+    action_items_content = (tmp_path / "Action Items.md").read_text(encoding="utf-8")
+
+    assert result.exit_code == 0
+    assert "## Related Meetings" in saved_note
+    assert "- [ ] Send launch notes" in action_items_content
+    assert "  - Source: [[Sample Meeting]]" in action_items_content
