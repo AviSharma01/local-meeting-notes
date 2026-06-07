@@ -14,6 +14,9 @@ def test_load_meeting_notes_loads_direct_markdown_notes(tmp_path):
             filename="sprint-planning.md",
             path=note_path,
             content=content,
+            tags=[],
+            summary="Discussed sprint scope.",
+            date=None,
         )
     ]
 
@@ -89,3 +92,114 @@ def test_load_meeting_notes_sorts_results_by_filename(tmp_path):
     notes = load_meeting_notes(tmp_path)
 
     assert [note.filename for note in notes] == ["Alpha.md", "beta.md", "charlie.md"]
+
+
+def test_load_meeting_notes_extracts_tags_from_yaml_list_format(tmp_path):
+    (tmp_path / "meeting.md").write_text(
+        """---
+tags:
+  - meeting-notes
+  - sprint
+---
+
+# Meeting
+""",
+        encoding="utf-8",
+    )
+
+    notes = load_meeting_notes(tmp_path)
+
+    assert notes[0].tags == ["meeting-notes", "sprint"]
+
+
+def test_load_meeting_notes_extracts_tags_from_inline_yaml_format(tmp_path):
+    (tmp_path / "meeting.md").write_text(
+        """---
+tags: [meeting-notes, sprint]
+---
+
+# Meeting
+""",
+        encoding="utf-8",
+    )
+
+    notes = load_meeting_notes(tmp_path)
+
+    assert notes[0].tags == ["meeting-notes", "sprint"]
+
+
+def test_load_meeting_notes_returns_empty_tags_when_missing(tmp_path):
+    (tmp_path / "meeting.md").write_text("# Meeting", encoding="utf-8")
+
+    notes = load_meeting_notes(tmp_path)
+
+    assert notes[0].tags == []
+
+
+def test_load_meeting_notes_extracts_date_from_frontmatter(tmp_path):
+    (tmp_path / "meeting.md").write_text(
+        """---
+date: 2026-06-07
+---
+
+# Meeting
+""",
+        encoding="utf-8",
+    )
+
+    notes = load_meeting_notes(tmp_path)
+
+    assert notes[0].date == "2026-06-07"
+
+
+def test_load_meeting_notes_returns_none_when_date_missing(tmp_path):
+    (tmp_path / "meeting.md").write_text("# Meeting", encoding="utf-8")
+
+    notes = load_meeting_notes(tmp_path)
+
+    assert notes[0].date is None
+
+
+def test_load_meeting_notes_extracts_summary_text(tmp_path):
+    (tmp_path / "meeting.md").write_text(
+        """# Meeting
+
+## Summary
+
+Discussed launch scope.
+Confirmed beta timeline.
+""",
+        encoding="utf-8",
+    )
+
+    notes = load_meeting_notes(tmp_path)
+
+    assert notes[0].summary == "Discussed launch scope.\nConfirmed beta timeline."
+
+
+def test_load_meeting_notes_stops_summary_at_next_heading(tmp_path):
+    (tmp_path / "meeting.md").write_text(
+        """# Meeting
+
+## Summary
+
+Discussed launch scope.
+
+## Action Items
+
+- [ ] Send notes — Owner: Avi — Due: Friday
+""",
+        encoding="utf-8",
+    )
+
+    notes = load_meeting_notes(tmp_path)
+
+    assert notes[0].summary == "Discussed launch scope."
+
+
+def test_load_meeting_notes_returns_empty_summary_when_missing(tmp_path):
+    (tmp_path / "meeting.md").write_text("# Meeting\n\n## Notes", encoding="utf-8")
+
+    notes = load_meeting_notes(tmp_path)
+
+    assert notes[0].summary == ""
