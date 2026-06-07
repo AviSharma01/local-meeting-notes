@@ -1,6 +1,13 @@
 from pathlib import Path
 
-from src.related_notes import MeetingNote, find_related_notes, load_meeting_notes
+from src.related_notes import (
+    MeetingNote,
+    RelatedNoteMatch,
+    find_related_notes,
+    format_related_meetings_section,
+    format_wiki_link,
+    load_meeting_notes,
+)
 
 
 def make_note(
@@ -362,3 +369,56 @@ def test_find_related_notes_includes_useful_reasons():
     assert "Shared title keyword: sprint" in matches[0].reasons
     assert "Shared tag: qa" in matches[0].reasons
     assert "Shared content keywords: beta, rollout" in matches[0].reasons
+
+
+def test_format_wiki_link_uses_filename_stem():
+    note = make_note("Sprint Planning", "sprint-planning.md")
+
+    assert format_wiki_link(note) == "[[sprint-planning]]"
+
+
+def test_format_wiki_link_excludes_markdown_extension():
+    note = make_note("Sprint Planning", "sprint-planning.md")
+
+    assert ".md" not in format_wiki_link(note)
+
+
+def test_format_related_meetings_section_returns_empty_string_for_no_matches():
+    assert format_related_meetings_section([]) == ""
+
+
+def test_format_related_meetings_section_includes_heading_wiki_links_scores_and_reasons():
+    note = make_note("Sprint Planning", "sprint-planning.md")
+    match = RelatedNoteMatch(
+        note=note,
+        score=6,
+        reasons=[
+            "Shared title keyword: sprint",
+            "Shared content keywords: beta, qa",
+        ],
+    )
+
+    section = format_related_meetings_section([match])
+
+    assert section.startswith("## Related Meetings\n\n")
+    assert "- [[sprint-planning]] — Score: 6" in section
+    assert "  - Reason: Shared title keyword: sprint" in section
+    assert "  - Reason: Shared content keywords: beta, qa" in section
+
+
+def test_format_related_meetings_section_preserves_match_order():
+    first = RelatedNoteMatch(make_note("Beta", "beta.md"), score=2, reasons=[])
+    second = RelatedNoteMatch(make_note("Alpha", "alpha.md"), score=9, reasons=[])
+
+    section = format_related_meetings_section([first, second])
+
+    assert section.index("[[beta]]") < section.index("[[alpha]]")
+
+
+def test_format_related_meetings_section_renders_match_with_no_reasons():
+    match = RelatedNoteMatch(make_note("Sprint Planning", "sprint-planning.md"), 3, [])
+
+    section = format_related_meetings_section([match])
+
+    assert "- [[sprint-planning]] — Score: 3" in section
+    assert "Reason:" not in section

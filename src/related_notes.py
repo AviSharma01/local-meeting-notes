@@ -124,6 +124,25 @@ def find_related_notes(
     return sorted(matches, key=lambda match: (-match.score, match.note.filename))[:limit]
 
 
+def format_wiki_link(note: MeetingNote) -> str:
+    """Format a meeting note as an Obsidian wiki-link."""
+    return f"[[{Path(note.filename).stem}]]"
+
+
+def format_related_meetings_section(matches: list[RelatedNoteMatch]) -> str:
+    """Format related-note matches as an Obsidian-friendly Markdown section."""
+    if not matches:
+        return ""
+
+    match_sections = []
+    for match in matches:
+        lines = [f"- {format_wiki_link(match.note)} — Score: {match.score}"]
+        lines.extend(f"  - Reason: {reason}" for reason in match.reasons)
+        match_sections.append("\n".join(lines))
+
+    return "## Related Meetings\n\n" + "\n\n".join(match_sections)
+
+
 def _extract_title(content: str, path: Path) -> str:
     for line in content.splitlines():
         stripped_line = line.lstrip()
