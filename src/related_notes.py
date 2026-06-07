@@ -1,5 +1,22 @@
 from dataclasses import dataclass
 from pathlib import Path
+import re
+
+
+STOP_WORDS = {
+    "the",
+    "and",
+    "for",
+    "with",
+    "meeting",
+    "notes",
+    "summary",
+    "action",
+    "items",
+    "discussed",
+    "reviewed",
+}
+GENERIC_TAGS = {"meeting-notes"}
 
 
 @dataclass(frozen=True)
@@ -11,6 +28,13 @@ class MeetingNote:
     tags: list[str]
     summary: str
     date: str | None
+
+
+@dataclass(frozen=True)
+class RelatedNoteMatch:
+    note: MeetingNote
+    score: int
+    reasons: list[str]
 
 
 def load_meeting_notes(folder_path: str | Path) -> list[MeetingNote]:
@@ -45,6 +69,59 @@ def load_meeting_notes(folder_path: str | Path) -> list[MeetingNote]:
         )
 
     return meeting_notes
+
+
+def find_related_notes(
+    current_title: str,
+    current_content: str,
+    candidate_notes: list[MeetingNote],
+    limit: int = 3,
+) -> list[RelatedNoteMatch]:
+    """Find related notes using deterministic local keyword rules."""
+    if limit <= 0:
+        return []
+
+    current_title_words = _meaningful_words(current_title)
+    current_words = _meaningful_words(f"{current_title} {current_content}")
+    matches = []
+
+    for note in candidate_notes:
+        if note.title == current_title:
+            continue
+
+        score = 0
+        reasons = []
+
+        shared_title_words = sorted(current_title_words & _meaningful_words(note.title))
+        if shared_title_words:
+            score += 3
+            reasons.append(f"Shared title keyword: {shared_title_words[0]}")
+
+        current_text = f"{current_title} {current_content}".lower()
+        for tag in _scoring_tags(note.tags):
+            if tag in _tag_words(current_text):
+                score += 2
+                reasons.append(f"Shared tag: {tag}")
+
+        candidate_words = _meaningful_words(f"{note.summary} {note.content}")
+        shared_content_keywords = sorted(current_words & candidate_words)
+        if shared_content_keywords:
+            scored_keywords = shared_content_keywords[:5]
+            score += len(scored_keywords)
+            reasons.append(
+                "Shared content keywords: " + ", ".join(scored_keywords)
+            )
+
+        if score > 0:
+            matches.append(
+                RelatedNoteMatch(
+                    note=note,
+                    score=score,
+                    reasons=reasons,
+                )
+            )
+
+    return sorted(matches, key=lambda match: (-match.score, match.note.filename))[:limit]
 
 
 def _extract_title(content: str, path: Path) -> str:
@@ -131,3 +208,23 @@ def _extract_summary(content: str) -> str:
 
 def _clean_yaml_value(value: str) -> str:
     return value.strip().strip("\"'")
+
+
+def _meaningful_words(text: str) -> set[str]:
+    return {
+        word
+        for word in re.findall(r"[a-z0-9]+", text.lower())
+        if len(word) > 2 and word not in STOP_WORDS
+    }
+
+
+def _scoring_tags(tags: list[str]) -> list[str]:
+    return sorted(
+        tag.lower()
+        for tag in tags
+        if tag.lower() not in GENERIC_TAGS and tag.lower() not in STOP_WORDS
+    )
+
+
+def _tag_words(text: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", text.lower()))

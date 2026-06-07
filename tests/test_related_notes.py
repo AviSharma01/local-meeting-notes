@@ -1,4 +1,25 @@
-from src.related_notes import MeetingNote, load_meeting_notes
+from pathlib import Path
+
+from src.related_notes import MeetingNote, find_related_notes, load_meeting_notes
+
+
+def make_note(
+    title,
+    filename,
+    content="",
+    tags=None,
+    summary="",
+    date=None,
+):
+    return MeetingNote(
+        title=title,
+        filename=filename,
+        path=Path(filename),
+        content=content,
+        tags=tags or [],
+        summary=summary,
+        date=date,
+    )
 
 
 def test_load_meeting_notes_loads_direct_markdown_notes(tmp_path):
@@ -203,3 +224,141 @@ def test_load_meeting_notes_returns_empty_summary_when_missing(tmp_path):
     notes = load_meeting_notes(tmp_path)
 
     assert notes[0].summary == ""
+
+
+def test_find_related_notes_returns_empty_list_with_no_candidates():
+    assert find_related_notes("Sprint Planning", "Discussed beta launch.", []) == []
+
+
+def test_find_related_notes_returns_empty_list_when_no_signals_match():
+    candidates = [
+        make_note(
+            "Budget Review",
+            "budget.md",
+            content="Discussed finance forecasts.",
+            tags=["finance"],
+            summary="Reviewed budget.",
+        )
+    ]
+
+    assert find_related_notes("Sprint Planning", "Discussed beta launch.", candidates) == []
+
+
+def test_find_related_notes_scores_shared_title_words_once():
+    note = make_note("Sprint Retro", "sprint-retro.md")
+
+    matches = find_related_notes("Sprint Planning", "Discussed roadmap.", [note])
+
+    assert matches[0].score == 3
+    assert matches[0].reasons == ["Shared title keyword: sprint"]
+
+
+def test_find_related_notes_scores_candidate_tags_in_current_title_or_content():
+    note = make_note("Roadmap", "roadmap.md", tags=["launch", "qa"])
+
+    matches = find_related_notes(
+        "Sprint Planning",
+        "The team discussed launch readiness and QA ownership.",
+        [note],
+    )
+
+    assert matches[0].score == 4
+    assert matches[0].reasons == ["Shared tag: launch", "Shared tag: qa"]
+
+
+def test_find_related_notes_does_not_score_generic_tags():
+    note = make_note("Roadmap", "roadmap.md", tags=["meeting-notes"])
+
+    assert find_related_notes(
+        "Meeting Notes",
+        "These meeting notes mention planning.",
+        [note],
+    ) == []
+
+
+def test_find_related_notes_scores_shared_content_keywords_with_cap():
+    note = make_note(
+        "Roadmap",
+        "roadmap.md",
+        content="alpha beta gamma delta epsilon zeta eta theta",
+    )
+
+    matches = find_related_notes(
+        "Planning",
+        "alpha beta gamma delta epsilon zeta eta theta",
+        [note],
+    )
+
+    assert matches[0].score == 5
+    assert matches[0].reasons == [
+        "Shared content keywords: alpha, beta, delta, epsilon, eta"
+    ]
+
+
+def test_find_related_notes_limits_results():
+    candidates = [
+        make_note("Sprint A", "a.md"),
+        make_note("Sprint B", "b.md"),
+        make_note("Sprint C", "c.md"),
+    ]
+
+    matches = find_related_notes("Sprint Planning", "", candidates, limit=2)
+
+    assert [match.note.filename for match in matches] == ["a.md", "b.md"]
+
+
+def test_find_related_notes_sorts_by_score_descending():
+    low_score = make_note("Sprint Retro", "low.md")
+    high_score = make_note(
+        "Sprint Launch",
+        "high.md",
+        tags=["launch"],
+        content="beta",
+    )
+
+    matches = find_related_notes(
+        "Sprint Planning",
+        "Discussed launch beta.",
+        [low_score, high_score],
+    )
+
+    assert [match.note.filename for match in matches] == ["high.md", "low.md"]
+    assert matches[0].score > matches[1].score
+
+
+def test_find_related_notes_uses_filename_as_tie_breaker():
+    candidates = [
+        make_note("Sprint Beta", "b.md"),
+        make_note("Sprint Alpha", "a.md"),
+    ]
+
+    matches = find_related_notes("Sprint Planning", "", candidates)
+
+    assert [match.note.filename for match in matches] == ["a.md", "b.md"]
+
+
+def test_find_related_notes_excludes_exact_same_title():
+    candidates = [
+        make_note("Sprint Planning", "same.md", tags=["sprint"], content="planning")
+    ]
+
+    assert find_related_notes("Sprint Planning", "sprint planning", candidates) == []
+
+
+def test_find_related_notes_includes_useful_reasons():
+    note = make_note(
+        "Sprint Launch",
+        "sprint-launch.md",
+        content="beta rollout",
+        tags=["qa"],
+    )
+
+    matches = find_related_notes(
+        "Sprint Planning",
+        "QA reviewed beta rollout.",
+        [note],
+    )
+
+    assert "Shared title keyword: sprint" in matches[0].reasons
+    assert "Shared tag: qa" in matches[0].reasons
+    assert "Shared content keywords: beta, rollout" in matches[0].reasons
