@@ -399,18 +399,22 @@ def test_find_related_notes_filters_generated_note_boilerplate_keywords():
         "Prior Launch",
         "prior-launch.md",
         content=(
-            "created date dates explicitly mentioned none unknown "
-            "made missing found related score reason reasons section sections "
-            "content generated final note launch"
+            "meeting meetings note notes summary summarized action actions "
+            "item items decision decisions follow followup followups risk risks "
+            "blocker blockers question questions evidence timestamp timestamps "
+            "owner due unknown explicitly mentioned none created missing related "
+            "reason score launch dashboard"
         ),
     )
 
     matches = find_related_notes(
         "Current Launch",
         (
-            "created date dates explicitly mentioned none unknown "
-            "made missing found related score reason reasons section sections "
-            "content generated final note launch"
+            "meeting meetings note notes summary summarized action actions "
+            "item items decision decisions follow followup followups risk risks "
+            "blocker blockers question questions evidence timestamp timestamps "
+            "owner due unknown explicitly mentioned none created missing related "
+            "reason score launch dashboard"
         ),
         [note],
     )
@@ -420,7 +424,48 @@ def test_find_related_notes_filters_generated_note_boilerplate_keywords():
         for reason in matches[0].reasons
         if reason.startswith("Shared content keywords:")
     )
-    assert content_reason == "Shared content keywords: launch"
+    content_keywords = set(
+        content_reason.removeprefix("Shared content keywords: ").split(", ")
+    )
+    boilerplate_keywords = {
+        "meeting",
+        "meetings",
+        "note",
+        "notes",
+        "summary",
+        "summarized",
+        "action",
+        "actions",
+        "item",
+        "items",
+        "decision",
+        "decisions",
+        "follow",
+        "followup",
+        "followups",
+        "risk",
+        "risks",
+        "blocker",
+        "blockers",
+        "question",
+        "questions",
+        "evidence",
+        "timestamp",
+        "timestamps",
+        "owner",
+        "due",
+        "unknown",
+        "explicitly",
+        "mentioned",
+        "none",
+        "created",
+        "missing",
+        "related",
+        "reason",
+        "score",
+    }
+    assert content_keywords.isdisjoint(boilerplate_keywords)
+    assert content_keywords == {"dashboard", "launch"}
 
 
 def test_find_related_notes_keeps_meaningful_shared_content_keywords():
