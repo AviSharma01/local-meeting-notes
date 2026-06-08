@@ -75,11 +75,11 @@ STOP_WORDS = {
     "note",
     "discussed",
     "reviewed",
-    "alex",
-    "sam",
-    "priya",
 }
 GENERIC_TAGS = {"meeting-notes"}
+SPEAKER_LABEL_PATTERN = re.compile(
+    r"^\s*(?:\[\d{2}:\d{2}(?::\d{2})?\]\s*)?([A-Za-z][A-Za-z\s'-]*):"
+)
 KEYWORD_SECTIONS = {
     "Summary",
     "Key Decisions",
@@ -159,9 +159,8 @@ def find_related_notes(
         return []
 
     current_title_words = _meaningful_words(current_title)
-    current_words = _meaningful_words(
-        f"{current_title} {_extract_keyword_text(current_content)}"
-    )
+    current_keyword_text = _extract_keyword_text(current_content)
+    current_words = current_title_words | _content_words(current_keyword_text)
     matches = []
 
     for note in candidate_notes:
@@ -182,7 +181,7 @@ def find_related_notes(
                 score += 2
                 reasons.append(f"Shared tag: {tag}")
 
-        candidate_words = _meaningful_words(_extract_keyword_text(note.content))
+        candidate_words = _content_words(_extract_keyword_text(note.content))
         shared_content_keywords = sorted(current_words & candidate_words)
         if shared_content_keywords:
             scored_keywords = shared_content_keywords[:5]
@@ -338,6 +337,20 @@ def _meaningful_words(text: str) -> set[str]:
         for word in re.findall(r"[a-z0-9]+", text.lower())
         if len(word) > 2 and word not in STOP_WORDS
     }
+
+
+def _content_words(text: str) -> set[str]:
+    return _meaningful_words(text) - _extract_speaker_labels(text)
+
+
+def _extract_speaker_labels(content: str) -> set[str]:
+    speaker_labels = set()
+    for line in content.splitlines():
+        match = SPEAKER_LABEL_PATTERN.match(line)
+        if match:
+            speaker_labels.update(_meaningful_words(match.group(1)))
+
+    return speaker_labels
 
 
 def _scoring_tags(tags: list[str]) -> list[str]:

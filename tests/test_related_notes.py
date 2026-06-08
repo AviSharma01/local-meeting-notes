@@ -29,6 +29,15 @@ def make_note(
     )
 
 
+def content_keywords_from(match):
+    content_reason = next(
+        reason
+        for reason in match.reasons
+        if reason.startswith("Shared content keywords:")
+    )
+    return set(content_reason.removeprefix("Shared content keywords: ").split(", "))
+
+
 def test_load_meeting_notes_loads_direct_markdown_notes(tmp_path):
     note_path = tmp_path / "sprint-planning.md"
     content = "# Meeting Notes: Sprint Planning\n\n## Summary\n\nDiscussed sprint scope."
@@ -375,23 +384,73 @@ def test_find_related_notes_filters_noisy_shared_content_keywords():
     note = make_note(
         "Prior Launch",
         "prior-launch.md",
-        content="Alex said but blockers were just more about process.",
+        content="The team said but blockers were just more about process.",
     )
 
     matches = find_related_notes(
         "Current Launch",
-        "Alex said but blockers were just more about process.",
+        "The team said but blockers were just more about process.",
         [note],
     )
 
-    content_reason = next(
-        reason
-        for reason in matches[0].reasons
-        if reason.startswith("Shared content keywords:")
+    content_keywords = content_keywords_from(matches[0])
+    assert "but" not in content_keywords
+    assert "blockers" not in content_keywords
+
+
+def test_find_related_notes_filters_timestamped_speaker_labels_from_content_keywords():
+    note = make_note(
+        "Prior Record",
+        "prior-record.md",
+        content="[00:35] Sam: Dashboard metrics improved for beta launch.",
     )
-    assert "alex" not in content_reason
-    assert "but" not in content_reason
-    assert "blockers" not in content_reason
+
+    matches = find_related_notes(
+        "Current Report",
+        "[01:10:22] Sam: Dashboard metrics improved for beta launch.",
+        [note],
+    )
+
+    content_keywords = content_keywords_from(matches[0])
+    assert "sam" not in content_keywords
+    assert {"dashboard", "metrics"}.issubset(content_keywords)
+
+
+def test_find_related_notes_filters_plain_speaker_labels_from_content_keywords():
+    note = make_note(
+        "Prior Record",
+        "prior-record.md",
+        content="Priya: Launch dashboard metrics look stable.",
+    )
+
+    matches = find_related_notes(
+        "Current Report",
+        "Priya: Launch dashboard metrics look stable.",
+        [note],
+    )
+
+    content_keywords = content_keywords_from(matches[0])
+    assert "priya" not in content_keywords
+    assert {"dashboard", "launch"}.issubset(content_keywords)
+
+
+def test_find_related_notes_filters_each_token_from_multi_word_speaker_labels():
+    note = make_note(
+        "Prior Record",
+        "prior-record.md",
+        content="Alex Chen: Beta dashboard metrics stayed stable.",
+    )
+
+    matches = find_related_notes(
+        "Current Report",
+        "Alex Chen: Beta dashboard metrics stayed stable.",
+        [note],
+    )
+
+    content_keywords = content_keywords_from(matches[0])
+    assert "alex" not in content_keywords
+    assert "chen" not in content_keywords
+    assert {"beta", "dashboard", "metrics"}.issubset(content_keywords)
 
 
 def test_find_related_notes_filters_generated_note_boilerplate_keywords():
