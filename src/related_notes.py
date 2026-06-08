@@ -72,6 +72,20 @@ STOP_WORDS = {
     "priya",
 }
 GENERIC_TAGS = {"meeting-notes"}
+KEYWORD_SECTIONS = {
+    "Summary",
+    "Key Decisions",
+    "Action Items",
+    "Evidence / Timestamps",
+}
+NOISY_KEYWORD_SECTIONS = {
+    "Meeting Health",
+    "Needs Review",
+    "Related Meetings",
+    "Follow-ups",
+    "Risks / Blockers",
+    "Open Questions",
+}
 
 
 @dataclass(frozen=True)
@@ -137,7 +151,9 @@ def find_related_notes(
         return []
 
     current_title_words = _meaningful_words(current_title)
-    current_words = _meaningful_words(f"{current_title} {current_content}")
+    current_words = _meaningful_words(
+        f"{current_title} {_extract_keyword_text(current_content)}"
+    )
     matches = []
 
     for note in candidate_notes:
@@ -158,7 +174,7 @@ def find_related_notes(
                 score += 2
                 reasons.append(f"Shared tag: {tag}")
 
-        candidate_words = _meaningful_words(f"{note.summary} {note.content}")
+        candidate_words = _meaningful_words(_extract_keyword_text(note.content))
         shared_content_keywords = sorted(current_words & candidate_words)
         if shared_content_keywords:
             scored_keywords = shared_content_keywords[:5]
@@ -278,6 +294,30 @@ def _extract_summary(content: str) -> str:
             summary_lines.append(line)
 
     return "\n".join(summary_lines).strip()
+
+
+def _extract_keyword_text(content: str) -> str:
+    keyword_lines = []
+    current_section = None
+    saw_section = False
+
+    for line in content.splitlines():
+        if line.startswith("## "):
+            saw_section = True
+            current_section = line.removeprefix("## ").strip()
+            continue
+
+        if current_section in KEYWORD_SECTIONS:
+            keyword_lines.append(line)
+        elif current_section in NOISY_KEYWORD_SECTIONS:
+            continue
+
+    keyword_text = "\n".join(keyword_lines).strip()
+    if keyword_text:
+        return keyword_text
+    if saw_section:
+        return ""
+    return content
 
 
 def _clean_yaml_value(value: str) -> str:

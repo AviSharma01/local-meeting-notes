@@ -439,6 +439,119 @@ def test_find_related_notes_keeps_meaningful_shared_content_keywords():
     assert "Shared content keywords: beta, dashboard, metrics" in matches[0].reasons
 
 
+def test_find_related_notes_uses_summary_section_keywords():
+    note = make_note(
+        "Prior Planning",
+        "prior-planning.md",
+        content="""# Prior Planning
+
+## Summary
+
+Launch beta dashboard metrics were reviewed.
+""",
+    )
+
+    matches = find_related_notes(
+        "Current Planning",
+        """# Current Planning
+
+## Summary
+
+Launch beta dashboard metrics stayed on track.
+""",
+        [note],
+    )
+
+    assert "Shared content keywords: beta, dashboard, launch, metrics" in matches[0].reasons
+
+
+def test_find_related_notes_uses_key_decisions_section_keywords():
+    note = make_note(
+        "Prior Decision",
+        "prior-decision.md",
+        content="""# Prior Decision
+
+## Key Decisions
+
+- Decision: Keep the beta launch dashboard scope.
+""",
+    )
+
+    matches = find_related_notes(
+        "Current Decision",
+        """# Current Decision
+
+## Key Decisions
+
+- Decision: Keep beta launch dashboard scope.
+""",
+        [note],
+    )
+
+    assert (
+        "Shared content keywords: beta, dashboard, keep, launch, scope"
+        in matches[0].reasons
+    )
+
+
+def test_find_related_notes_ignores_meeting_health_only_keywords():
+    note = make_note(
+        "Prior Status",
+        "prior-health.md",
+        content="""# Prior Health
+
+## Meeting Health
+
+- Decisions made: 1
+- Action items created: 2
+- Open questions: 3
+""",
+    )
+
+    matches = find_related_notes(
+        "Current Report",
+        """# Current Health
+
+## Meeting Health
+
+- Decisions made: 1
+- Action items created: 2
+- Open questions: 3
+""",
+        [note],
+    )
+
+    assert matches == []
+
+
+def test_find_related_notes_ignores_related_meetings_only_keywords():
+    note = make_note(
+        "Prior Connections",
+        "prior-links.md",
+        content="""# Prior Links
+
+## Related Meetings
+
+- [[dashboard-beta-launch]] — Score: 8
+  - Reason: Shared content keywords: dashboard, beta, launch
+""",
+    )
+
+    matches = find_related_notes(
+        "Current References",
+        """# Current Links
+
+## Related Meetings
+
+- [[dashboard-beta-launch]] — Score: 8
+  - Reason: Shared content keywords: dashboard, beta, launch
+""",
+        [note],
+    )
+
+    assert matches == []
+
+
 def test_format_wiki_link_uses_filename_stem():
     note = make_note("Sprint Planning", "sprint-planning.md")
 
