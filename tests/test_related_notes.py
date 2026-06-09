@@ -402,18 +402,18 @@ def test_find_related_notes_filters_timestamped_speaker_labels_from_content_keyw
     note = make_note(
         "Prior Record",
         "prior-record.md",
-        content="[00:35] Sam: Dashboard metrics improved for beta launch.",
+        content="[00:35] Sam: QA dashboard metrics.",
     )
 
     matches = find_related_notes(
         "Current Report",
-        "[01:10:22] Sam: Dashboard metrics improved for beta launch.",
+        "[01:10:22] Sam: QA dashboard metrics.",
         [note],
     )
 
     content_keywords = content_keywords_from(matches[0])
     assert "sam" not in content_keywords
-    assert {"dashboard", "metrics"}.issubset(content_keywords)
+    assert {"dashboard", "metrics", "qa"}.issubset(content_keywords)
 
 
 def test_find_related_notes_filters_plain_speaker_labels_from_content_keywords():
@@ -540,7 +540,40 @@ def test_find_related_notes_keeps_meaningful_shared_content_keywords():
         [note],
     )
 
-    assert "Shared content keywords: beta, dashboard, metrics" in matches[0].reasons
+    assert "Shared content keywords: beta, dashboard, metrics, qa" in matches[0].reasons
+
+
+def test_find_related_notes_keeps_allowlisted_short_domain_keywords():
+    note = make_note(
+        "Product Review",
+        "product-review.md",
+        content="qa ui ai ml platform",
+    )
+
+    matches = find_related_notes(
+        "Product Planning",
+        "qa ui ai ml platform",
+        [note],
+    )
+
+    assert "Shared content keywords: ai, ml, platform, qa, ui" in matches[0].reasons
+
+
+def test_find_related_notes_ignores_non_allowlisted_short_keywords():
+    note = make_note(
+        "Product Review",
+        "product-review.md",
+        content="to go id platform dashboard",
+    )
+
+    matches = find_related_notes(
+        "Product Planning",
+        "to go id platform dashboard",
+        [note],
+    )
+
+    content_keywords = content_keywords_from(matches[0])
+    assert content_keywords == {"dashboard", "platform"}
 
 
 def test_find_related_notes_uses_summary_section_keywords():

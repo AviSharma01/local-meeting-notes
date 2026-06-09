@@ -77,6 +77,7 @@ STOP_WORDS = {
     "reviewed",
 }
 GENERIC_TAGS = {"meeting-notes"}
+SHORT_DOMAIN_WORDS = {"qa", "ui", "ux", "ai", "ml", "db", "ab"}
 SPEAKER_LABEL_PATTERN = re.compile(
     r"^\s*(?:\[\d{2}:\d{2}(?::\d{2})?\]\s*)?([A-Za-z][A-Za-z\s'-]*):"
 )
@@ -335,7 +336,7 @@ def _meaningful_words(text: str) -> set[str]:
     return {
         word
         for word in re.findall(r"[a-z0-9]+", text.lower())
-        if len(word) > 2 and word not in STOP_WORDS
+        if (len(word) > 2 or word in SHORT_DOMAIN_WORDS) and word not in STOP_WORDS
     }
 
 
