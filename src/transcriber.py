@@ -69,7 +69,8 @@ def transcribe_audio(
         raise RuntimeError(
             f"Could not transcribe audio file '{audio_path}'. "
             "Check that the file exists, is a supported audio format, and that "
-            "ffmpeg is installed for decoding common audio formats."
+            "ffmpeg is installed for decoding common audio formats. "
+            "On macOS, you may need `brew install ffmpeg`."
         ) from exc
 
 

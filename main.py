@@ -60,9 +60,17 @@ def preview(transcript_path: Path) -> None:
 def transcribe(
     audio_path: Path,
     out: Path = typer.Option(..., "--out", help="Output folder for the transcript."),
+    model: str = typer.Option(
+        "base",
+        "--model",
+        help=(
+            "Local faster-whisper model to use. "
+            "base is faster for testing; small may improve quality but is slower."
+        ),
+    ),
 ) -> None:
     """Transcribe a local audio file to timestamped plain text."""
-    segments = transcribe_audio(audio_path)
+    segments = transcribe_audio(audio_path, model_size=model)
     transcript_path = write_transcript(out, audio_path, segments)
     console.print(f"Saved transcript: {transcript_path}")
 

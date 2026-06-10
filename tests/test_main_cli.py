@@ -26,11 +26,18 @@ def test_transcribe_command_help_is_available():
     assert result.exit_code == 0
     assert "Transcribe a local audio file" in result.output
     assert "--out" in result.output
+    assert "--model" in result.output
+    assert "base is faster" in result.output
+    assert "for testing" in result.output
+    assert "small may improve quality" in result.output
 
 
 def test_transcribe_command_writes_mocked_transcript(monkeypatch, tmp_path):
-    def fake_transcribe_audio(audio_path):
+    captured = {}
+
+    def fake_transcribe_audio(audio_path, model_size):
         assert str(audio_path) == "meeting.m4a"
+        captured["model_size"] = model_size
         return [
             TranscriptSegment(0, "First transcribed segment."),
             TranscriptSegment(18, "Second transcribed segment."),
@@ -51,6 +58,7 @@ def test_transcribe_command_writes_mocked_transcript(monkeypatch, tmp_path):
     transcript_path = tmp_path / "meeting.txt"
 
     assert result.exit_code == 0
+    assert captured["model_size"] == "base"
     assert transcript_path.exists()
     assert transcript_path.read_text(encoding="utf-8") == (
         "[00:00] First transcribed segment.\n"
@@ -58,6 +66,32 @@ def test_transcribe_command_writes_mocked_transcript(monkeypatch, tmp_path):
     )
     assert "Saved transcript:" in result.output
     assert "meeting.txt" in result.output
+
+
+def test_transcribe_command_passes_selected_model(monkeypatch, tmp_path):
+    captured = {}
+
+    def fake_transcribe_audio(audio_path, model_size):
+        captured["model_size"] = model_size
+        return [TranscriptSegment(0, "First transcribed segment.")]
+
+    monkeypatch.setattr(main, "transcribe_audio", fake_transcribe_audio)
+
+    result = runner.invoke(
+        main.app,
+        [
+            "transcribe",
+            "meeting.m4a",
+            "--out",
+            str(tmp_path),
+            "--model",
+            "small",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert captured["model_size"] == "small"
+    assert (tmp_path / "meeting.txt").exists()
 
 
 def test_summarize_command_generates_and_saves_note(monkeypatch, tmp_path):

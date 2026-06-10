@@ -149,6 +149,7 @@ def test_transcribe_audio_decode_failure_raises_helpful_error(monkeypatch):
     message = str(exc_info.value)
     assert "Could not transcribe audio file 'meeting.m4a'" in message
     assert "ffmpeg" in message
+    assert "brew install ffmpeg" in message
 
 
 def test_create_whisper_model_missing_dependency_raises_helpful_error(monkeypatch):
