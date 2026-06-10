@@ -4,6 +4,7 @@ from typer.testing import CliRunner
 
 import main
 from src.note_writer import safe_filename
+from src.transcriber import TranscriptSegment
 
 
 runner = CliRunner()
@@ -17,6 +18,46 @@ def test_preview_command_still_works():
 
     assert result.exit_code == 0
     assert "Alex: Let's start with the launch checklist." in result.output
+
+
+def test_transcribe_command_help_is_available():
+    result = runner.invoke(main.app, ["transcribe", "--help"])
+
+    assert result.exit_code == 0
+    assert "Transcribe a local audio file" in result.output
+    assert "--out" in result.output
+
+
+def test_transcribe_command_writes_mocked_transcript(monkeypatch, tmp_path):
+    def fake_transcribe_audio(audio_path):
+        assert str(audio_path) == "meeting.m4a"
+        return [
+            TranscriptSegment(0, "First transcribed segment."),
+            TranscriptSegment(18, "Second transcribed segment."),
+        ]
+
+    monkeypatch.setattr(main, "transcribe_audio", fake_transcribe_audio)
+
+    result = runner.invoke(
+        main.app,
+        [
+            "transcribe",
+            "meeting.m4a",
+            "--out",
+            str(tmp_path),
+        ],
+    )
+
+    transcript_path = tmp_path / "meeting.txt"
+
+    assert result.exit_code == 0
+    assert transcript_path.exists()
+    assert transcript_path.read_text(encoding="utf-8") == (
+        "[00:00] First transcribed segment.\n"
+        "[00:18] Second transcribed segment."
+    )
+    assert "Saved transcript:" in result.output
+    assert "meeting.txt" in result.output
 
 
 def test_summarize_command_generates_and_saves_note(monkeypatch, tmp_path):

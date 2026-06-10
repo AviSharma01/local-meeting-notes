@@ -14,6 +14,7 @@ from src.related_notes import (
 )
 from src.transcript_cleaner import clean_transcript
 from src.transcripts import read_transcript
+from src.transcriber import transcribe_audio, write_transcript
 
 
 app = typer.Typer(help="Local-first meeting notes CLI.")
@@ -53,6 +54,17 @@ def preview(transcript_path: Path) -> None:
             border_style="cyan",
         )
     )
+
+
+@app.command()
+def transcribe(
+    audio_path: Path,
+    out: Path = typer.Option(..., "--out", help="Output folder for the transcript."),
+) -> None:
+    """Transcribe a local audio file to timestamped plain text."""
+    segments = transcribe_audio(audio_path)
+    transcript_path = write_transcript(out, audio_path, segments)
+    console.print(f"Saved transcript: {transcript_path}")
 
 
 @app.command()
