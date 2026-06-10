@@ -4,3 +4,4 @@ ollama
 requests
 pytest
 python-dotenv
+faster-whisper

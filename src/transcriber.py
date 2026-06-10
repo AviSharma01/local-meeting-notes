@@ -52,9 +52,35 @@ def write_transcript(
     return transcript_path
 
 
-def transcribe_audio(audio_path: str | Path) -> list[TranscriptSegment]:
-    """Placeholder boundary for a future local transcription engine."""
-    raise RuntimeError(
-        "Local transcription is not configured yet. "
-        "A local transcription engine will be added in a later Phase 4 task."
-    )
+def transcribe_audio(
+    audio_path: str | Path,
+    model_size: str = "base",
+) -> list[TranscriptSegment]:
+    """Transcribe a local audio file with faster-whisper."""
+    model = _create_whisper_model(model_size)
+    try:
+        segments, _info = model.transcribe(str(audio_path))
+        return [
+            TranscriptSegment(start_seconds=segment.start, text=segment.text.strip())
+            for segment in segments
+            if segment.text.strip()
+        ]
+    except Exception as exc:
+        raise RuntimeError(
+            f"Could not transcribe audio file '{audio_path}'. "
+            "Check that the file exists, is a supported audio format, and that "
+            "ffmpeg is installed for decoding common audio formats."
+        ) from exc
+
+
+def _create_whisper_model(model_size: str):
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError as exc:
+        raise RuntimeError(
+            "faster-whisper is not installed. Install dependencies with "
+            "`pip install -r requirements.txt` or install it directly with "
+            "`pip install faster-whisper`."
+        ) from exc
+
+    return WhisperModel(model_size)

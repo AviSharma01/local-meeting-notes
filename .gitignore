@@ -6,3 +6,25 @@ __pycache__/
 .DS_Store
 output/
 *.log
+
+# Local audio
+*.m4a
+*.mp3
+*.wav
+*.aac
+*.flac
+*.ogg
+*.webm
+*.mp4
+*.mov
+
+# Local transcription outputs
+transcripts/
+*.transcript.txt
+
+# Local test/sample media
+samples/
+sample_audio/
+audio/
+recordings/
+test_obsidian_meetings/
