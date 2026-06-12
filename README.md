@@ -1,41 +1,137 @@
+# Meeting Intelligence CLI
+
 ## What this project does
 
-A local-first CLI that turns meeting transcripts or local audio files into Obsidian-ready meeting notes, action items, and links to prior meetings.
+A local-first CLI that turns meeting transcripts or audio files into Obsidian-ready meeting notes, action items, and links to related prior meetings.
 
-The tool generates structured summaries, decisions, evidence-linked action items, meeting health metrics, and an `Action Items.md` tracker. It can also transcribe user-provided audio files locally into timestamped `.txt` transcripts before summarization.
+The tool can start from a `.txt` transcript or transcribe an audio file locally into a timestamped transcript first. Summarization runs through Ollama, transcription runs with faster-whisper, and notes are written directly to a folder you choose.
 
-The project is designed to avoid cloud dependencies: transcripts are processed locally with Ollama, audio transcription runs locally with faster-whisper, notes are written directly to a user-selected folder, and no calendar, email, Slack, Notion, or full Obsidian vault access is required.
+## Current capabilities
 
-## Interesting design decision
+* Generate structured meeting notes from transcripts
+* Transcribe local audio files into timestamped `.txt` transcripts
+* Extract summaries, decisions, action items, follow-ups, risks, and open questions
+* Append action items to an `Action Items.md` tracker
+* Optionally link related prior meetings using Obsidian wiki-links
+* Keep related-note matching limited to the selected meetings folder
 
-The related-meeting feature is intentionally folder-scoped. When `--link-related` is enabled, the tool reads only Markdown files directly inside the selected `--out` folder, ignores `Action Items.md`, avoids recursion and symlinks, and uses deterministic local matching to add Obsidian wiki-links to related prior meetings.
+## Quickstart
 
-Matching uses token-overlap scoring with fixed local rules, section-aware keyword extraction, boilerplate filtering, speaker-label filtering, and a small allowlist for short domain terms like `QA`, `UI`, `UX`, `AI`, and `ML`.
+Requirements:
 
-This keeps the project useful without turning it into a full-vault RAG system, semantic index, or background file watcher.
+* Python 3.11+
+* Ollama running locally
+* A local Ollama model, such as `qwen2.5:7b`
+* `ffmpeg` for audio transcription
+* Python dependencies from `requirements.txt`
 
-## Autonomy level
+Install dependencies:
 
-This is a controlled local workflow, not an autonomous agent.
+```bash
+pip install -r requirements.txt
+```
 
-The classification is deliberate: the steps are fixed, and there is no runtime decision-making about what to do next. The user provides the transcript or audio file, chooses the output folder, and explicitly enables related-note linking when desired.
+Install `ffmpeg` on macOS if needed:
 
-## Current phase and next work
+```bash
+brew install ffmpeg
+```
 
-Phase 1 implemented transcript-to-note generation, Obsidian Markdown export, and action-item tracking.
+Pull your Ollama model:
 
-Phase 2 added optional related-meeting linking from a selected folder.
+```bash
+ollama pull qwen2.5:7b
+```
 
-Phase 3 improved related-note quality through section-aware matching, boilerplate filtering, speaker-label filtering, and short-domain keyword handling.
+## Usage
 
-Phase 4 added local audio transcription using faster-whisper, so meetings can start from an audio file instead of a prepared transcript.
+Preview a transcript:
 
-Phase 5 will focus on speaker-aware transcript quality, mainly diarization or speaker labeling for multi-speaker meetings.
+```bash
+python main.py preview transcript.txt
+```
 
-## Local notes
+Generate a meeting note:
 
-Audio files, generated transcripts, and real meeting notes should stay local and should not be committed to GitHub.
+```bash
+python main.py summarize transcript.txt --title "Sprint Planning" --out "/path/to/Obsidian/Meetings"
+```
 
-The project expects local tools such as Ollama for summarization and faster-whisper for transcription. For common audio formats, ffmpeg may also be required.
+Generate a meeting note with related prior meetings:
 
-The recommended workflow is intentionally two-step: transcribe audio into a .txt file first, then summarize that transcript into an Obsidian-ready meeting note.
+```bash
+python main.py summarize transcript.txt --title "Sprint Planning" --out "/path/to/Obsidian/Meetings" --link-related
+```
+
+For audio, the workflow is intentionally two steps: transcribe to a `.txt` first, then summarize that transcript.
+
+Transcribe an audio file locally:
+
+```bash
+python main.py transcribe meeting.m4a --out transcripts/
+```
+
+Use a larger transcription model (`tiny`, `base`, `small`, `medium`; see Limitations for the tradeoff):
+
+```bash
+python main.py transcribe meeting.m4a --out transcripts/ --model small
+```
+
+Summarize the generated transcript:
+
+```bash
+python main.py summarize transcripts/meeting.txt --title "Sprint Review" --out "/path/to/Obsidian/Meetings" --link-related
+```
+
+## Sample output
+
+A generated note looks like this (excerpt):
+
+```markdown
+# Meeting Notes: Sprint Planning
+
+## Summary
+The team agreed to lock the release scope by Friday and defer the analytics dashboard to the next sprint.
+
+## Key Decisions
+
+- Decision: Move the analytics dashboard to the next sprint
+  - Evidence: [04:52]
+
+## Action Items
+
+- [ ] Complete final QA pass — Owner: Sam — Due: Friday
+  - Evidence: [00:18]
+
+## Related Meetings
+
+- [[sprint-planning-2026-XX-XX]] — Score: 6
+  - Reason: Shared title keyword: sprint
+  - Reason: Shared content keywords: release, qa
+```
+
+## Why related links are folder-scoped
+
+Related-meeting linking is intentionally limited to Markdown files directly inside the selected `--out` folder. The tool ignores `Action Items.md`, avoids recursion and symlinks, and does not scan the full Obsidian vault.
+
+This keeps the project useful without turning it into a full-vault RAG system, semantic index, or background file watcher. For the same reason, it is a local CLI workflow by design, not a web app, SaaS meeting bot, or real-time recorder.
+
+## What stays local
+
+Transcripts, audio files, generated notes, and related-note matching stay on your machine.
+
+The tool does not use cloud transcription APIs, cloud LLM APIs, calendar access, email access, Slack access, Notion access, or background folder watching.
+
+Real audio files, generated transcripts, and personal meeting notes should not be committed to GitHub.
+
+## Limitations
+
+Summaries and action items are generated by a local LLM and can miss details or state them imprecisely. Notes are a starting point to skim against the transcript, not a verbatim record.
+
+The tool does not currently perform speaker diarization, so audio transcripts may not identify who said what.
+
+Transcription quality depends on the selected faster-whisper model and the audio quality. The `base` model is faster for testing, while `small` or `medium` may improve accuracy but run slower.
+
+## Possible future work
+
+Speaker attribution could improve multi-speaker audio transcripts, but it is intentionally out of scope for now. Good local diarization often requires gated models and a HuggingFace account, which cuts against the zero-friction, account-free install this project aims for.
