@@ -6,12 +6,13 @@ from rich.panel import Panel
 
 from src.action_items import append_action_items
 from src.note_writer import write_markdown_note
-from src.ollama_client import generate_meeting_notes
+from src.ollama_client import DEFAULT_MODEL, extract_meeting
 from src.related_notes import (
     find_related_notes,
     format_related_meetings_section,
     load_meeting_notes,
 )
+from src.renderer import render_meeting
 from src.transcript_cleaner import clean_transcript
 from src.transcripts import read_transcript
 from src.transcriber import transcribe_audio, write_transcript
@@ -80,7 +81,7 @@ def summarize(
     transcript_path: Path,
     title: str = typer.Option(..., "--title", help="Meeting title for the saved note."),
     out: Path = typer.Option(..., "--out", help="Output folder for the Markdown note."),
-    model: str = typer.Option("qwen2.5:7b", "--model", help="Local Ollama model to use."),
+    model: str = typer.Option(DEFAULT_MODEL, "--model", help="Local Ollama model to use."),
     link_related: bool = typer.Option(
         False,
         "--link-related",
@@ -90,8 +91,8 @@ def summarize(
     """Generate and save Markdown meeting notes."""
     transcript = read_transcript(transcript_path)
     cleaned_transcript = clean_transcript(transcript)
-    generated_notes = generate_meeting_notes(cleaned_transcript, model=model)
-    notes = format_meeting_note(title, model, generated_notes)
+    extraction = extract_meeting(cleaned_transcript, model=model)
+    notes = format_meeting_note(title, model, render_meeting(extraction))
     related_matches_count = 0
     related_status = None
 
@@ -107,7 +108,7 @@ def summarize(
             related_status = "No related meetings found."
 
     saved_path = write_markdown_note(str(out), title, notes)
-    action_items_path = append_action_items(out, title, notes)
+    action_items_path = append_action_items(out, title, extraction.action_items)
 
     console.print(
         Panel(

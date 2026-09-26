@@ -4,11 +4,32 @@ import pytest
 from typer.testing import CliRunner
 
 import main
+from src.models import ActionItem, MeetingExtraction
 from src.note_writer import safe_filename
 from src.transcriber import TranscriptSegment
 
 
 runner = CliRunner()
+
+
+def make_extraction(summary, action_items=()):
+    return MeetingExtraction(
+        summary=summary,
+        decisions=[],
+        action_items=list(action_items),
+        follow_ups=[],
+        risks=[],
+        open_questions=[],
+        needs_review=[],
+    )
+
+
+SEND_NOTES = ActionItem(
+    task="Send launch notes",
+    owner="Avi",
+    due="Friday",
+    evidence="Avi agreed to send notes.",
+)
 
 
 @pytest.fixture
@@ -111,15 +132,14 @@ def test_transcribe_command_passes_selected_model(monkeypatch, tmp_path):
 def test_summarize_command_generates_and_saves_note(
     monkeypatch, tmp_path, sample_transcript
 ):
-    generated_notes = "\n\n# Summary\n\nLaunch stays on track.\n\n"
     captured = {}
 
-    def fake_generate_meeting_notes(transcript, model):
+    def fake_extract_meeting(transcript, model):
         captured["transcript"] = transcript
         captured["model"] = model
-        return generated_notes
+        return make_extraction("Launch stays on track.")
 
-    monkeypatch.setattr(main, "generate_meeting_notes", fake_generate_meeting_notes)
+    monkeypatch.setattr(main, "extract_meeting", fake_extract_meeting)
 
     result = runner.invoke(
         main.app,
@@ -139,7 +159,7 @@ def test_summarize_command_generates_and_saves_note(
     assert captured["model"] == "qwen2.5:7b"
     assert "Alex: Let's start with the launch checklist." in captured["transcript"]
     assert "\n\n" not in captured["transcript"]
-    assert "# Summary" in result.output
+    assert "## Summary" in result.output
     assert "Launch stays on track." in result.output
     assert "sample-meeting.md" in result.output
     assert "No action items found; Action Items.md was not updated." in result.output
@@ -150,8 +170,9 @@ def test_summarize_command_generates_and_saves_note(
     assert "model: qwen2.5:7b" in saved_note
     assert "tags:\n  - meeting-notes" in saved_note
     assert "# Meeting Notes: Sample Meeting" in saved_note
-    assert "# Summary\n\nLaunch stays on track." in saved_note
-    assert saved_note.endswith("Launch stays on track.")
+    assert "# Meeting Notes: Sample Meeting\n\n## Summary\n\nLaunch stays on track." in saved_note
+    assert "## Meeting Health\n\n- Decisions made: 0" in saved_note
+    assert saved_note.endswith("## Evidence / Timestamps\n\nNone explicitly mentioned.")
     assert "```" not in saved_note
     assert not (tmp_path / "Action Items.md").exists()
 
@@ -161,11 +182,11 @@ def test_summarize_command_passes_selected_model(
 ):
     captured = {}
 
-    def fake_generate_meeting_notes(transcript, model):
+    def fake_extract_meeting(transcript, model):
         captured["model"] = model
-        return "# Summary\n\nCustom model used."
+        return make_extraction("Custom model used.")
 
-    monkeypatch.setattr(main, "generate_meeting_notes", fake_generate_meeting_notes)
+    monkeypatch.setattr(main, "extract_meeting", fake_extract_meeting)
 
     result = runner.invoke(
         main.app,
@@ -194,8 +215,8 @@ def test_summarize_command_uses_out_as_output_folder(
 ):
     monkeypatch.setattr(
         main,
-        "generate_meeting_notes",
-        lambda transcript, model: "# Summary\n\nSaved to nested folder.",
+        "extract_meeting",
+        lambda transcript, model: make_extraction("Saved to nested folder."),
     )
     out = tmp_path / "nested" / "meetings"
 
@@ -218,20 +239,10 @@ def test_summarize_command_uses_out_as_output_folder(
 def test_summarize_command_appends_action_items(
     monkeypatch, tmp_path, sample_transcript
 ):
-    generated_notes = """# Summary
-
-Launch planning happened.
-
-## Action Items
-
-- [ ] Send launch notes — Owner: Avi — Due: Friday
-  - Evidence: Avi agreed to send notes.
-"""
-
     monkeypatch.setattr(
         main,
-        "generate_meeting_notes",
-        lambda transcript, model: generated_notes,
+        "extract_meeting",
+        lambda transcript, model: make_extraction("Launch planning happened.", [SEND_NOTES]),
     )
 
     result = runner.invoke(
@@ -258,12 +269,13 @@ Launch planning happened.
 
     action_items_content = action_items_path.read_text(encoding="utf-8")
     assert "## From [[Sample Meeting]]" in action_items_content
-    assert "- [ ] Send launch notes" in action_items_content
+    assert "- [ ] Send launch notes — Owner: Avi — Due: Friday" in action_items_content
     assert "  - Source: [[Sample Meeting]]" in action_items_content
 
     saved_note = note_path.read_text(encoding="utf-8")
     assert "# Meeting Notes: Sample Meeting" in saved_note
-    assert "- [ ] Send launch notes" in saved_note
+    assert "- [ ] Send launch notes — Owner: Avi — Due: Friday" in saved_note
+    assert "- Action items created: 1" in saved_note
 
 
 def test_summarize_command_does_not_create_action_items_when_none_found(
@@ -273,8 +285,8 @@ def test_summarize_command_does_not_create_action_items_when_none_found(
 ):
     monkeypatch.setattr(
         main,
-        "generate_meeting_notes",
-        lambda transcript, model: "# Summary\n\nNo action items today.",
+        "extract_meeting",
+        lambda transcript, model: make_extraction("No action items today."),
     )
 
     result = runner.invoke(
@@ -303,8 +315,8 @@ def test_summarize_command_does_not_load_related_notes_without_flag(
 ):
     monkeypatch.setattr(
         main,
-        "generate_meeting_notes",
-        lambda transcript, model: "# Summary\n\nLaunch stays on track.",
+        "extract_meeting",
+        lambda transcript, model: make_extraction("Launch stays on track."),
     )
 
     def fail_if_called(out):
@@ -349,8 +361,8 @@ Discussed launch QA.
     )
     monkeypatch.setattr(
         main,
-        "generate_meeting_notes",
-        lambda transcript, model: "# Summary\n\nLaunch QA stayed on track.",
+        "extract_meeting",
+        lambda transcript, model: make_extraction("Launch QA stayed on track."),
     )
 
     result = runner.invoke(
@@ -388,8 +400,8 @@ def test_summarize_command_link_related_with_no_matches_adds_no_empty_section(
     )
     monkeypatch.setattr(
         main,
-        "generate_meeting_notes",
-        lambda transcript, model: "# Summary\n\nLaunch QA stayed on track.",
+        "extract_meeting",
+        lambda transcript, model: make_extraction("Launch QA stayed on track."),
     )
 
     result = runner.invoke(
@@ -423,19 +435,10 @@ def test_summarize_command_appends_action_items_when_related_meetings_are_added(
         "# Sample Retro\n\n## Summary\n\nDiscussed launch QA.",
         encoding="utf-8",
     )
-    generated_notes = """# Summary
-
-Launch QA stayed on track.
-
-## Action Items
-
-- [ ] Send launch notes — Owner: Avi — Due: Friday
-  - Evidence: Avi agreed to send notes.
-"""
     monkeypatch.setattr(
         main,
-        "generate_meeting_notes",
-        lambda transcript, model: generated_notes,
+        "extract_meeting",
+        lambda transcript, model: make_extraction("Launch QA stayed on track.", [SEND_NOTES]),
     )
 
     result = runner.invoke(

@@ -1,54 +1,18 @@
 from pathlib import Path
 
+from src.models import ActionItem
+from src.renderer import render_action_item
+
 
 ACTION_ITEMS_FILENAME = "Action Items.md"
-
-
-def extract_action_items(markdown_note: str) -> list[str]:
-    """Extract top-level checkbox action items from the Action Items section."""
-    action_items = []
-    current_item = []
-    in_action_items_section = False
-
-    def flush_current_item() -> None:
-        if current_item:
-            action_items.append("\n".join(current_item))
-            current_item.clear()
-
-    for line in markdown_note.splitlines():
-        if line.strip() == "## Action Items":
-            flush_current_item()
-            in_action_items_section = True
-            continue
-
-        if in_action_items_section and line.startswith("## "):
-            flush_current_item()
-            in_action_items_section = False
-            continue
-
-        if not in_action_items_section:
-            continue
-
-        if line.startswith("- [ ]"):
-            flush_current_item()
-            current_item.append(line)
-        elif current_item and line[:1].isspace():
-            current_item.append(line)
-        else:
-            flush_current_item()
-
-    flush_current_item()
-
-    return action_items
 
 
 def append_action_items(
     folder_path: str,
     meeting_title: str,
-    markdown_note: str,
+    action_items: list[ActionItem],
 ) -> Path | None:
-    """Append extracted action items to Action Items.md in a selected folder."""
-    action_items = extract_action_items(markdown_note)
+    """Append action items to Action Items.md in a selected folder."""
     if not action_items:
         return None
 
@@ -71,14 +35,8 @@ def append_action_items(
     return action_items_path
 
 
-def _format_action_items_section(meeting_title: str, action_items: list[str]) -> str:
-    formatted_items = []
+def _format_action_items_section(meeting_title: str, action_items: list[ActionItem]) -> str:
     source_line = f"  - Source: [[{meeting_title}]]"
-
-    for item in action_items:
-        if "Source:" in item:
-            formatted_items.append(item)
-        else:
-            formatted_items.append(f"{item}\n{source_line}")
+    formatted_items = [f"{render_action_item(item)}\n{source_line}" for item in action_items]
 
     return f"## From [[{meeting_title}]]\n\n" + "\n\n".join(formatted_items)
