@@ -154,6 +154,7 @@ def find_related_notes(
     current_content: str,
     candidate_notes: list[MeetingNote],
     limit: int = 3,
+    current_stem: str | None = None,
 ) -> list[RelatedNoteMatch]:
     """Find related notes using deterministic local keyword rules."""
     if limit <= 0:
@@ -165,7 +166,7 @@ def find_related_notes(
     matches = []
 
     for note in candidate_notes:
-        if note.title == current_title:
+        if Path(note.filename).stem == current_stem:
             continue
 
         score = 0

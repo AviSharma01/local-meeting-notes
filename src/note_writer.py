@@ -1,4 +1,5 @@
 import re
+from datetime import date
 from pathlib import Path
 
 
@@ -21,12 +22,17 @@ def safe_filename(title: str, extension: str = ".md") -> str:
     return f"{safe_title}{normalized_extension}"
 
 
-def write_markdown_note(folder_path: str, title: str, content: str) -> Path:
+def note_stem(note_date: date, title: str) -> str:
+    """Build the dated filename stem shared by a note and its transcript."""
+    return f"{note_date.isoformat()}-{Path(safe_filename(title)).stem}"
+
+
+def write_markdown_note(folder_path: str, name: str, content: str) -> Path:
     """Write Markdown content to an explicitly selected folder."""
     folder = Path(folder_path)
     folder.mkdir(parents=True, exist_ok=True)
 
-    note_path = folder / safe_filename(title)
+    note_path = folder / safe_filename(name)
     note_path.write_text(content, encoding="utf-8")
 
     return note_path

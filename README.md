@@ -22,7 +22,6 @@ Requirements:
 * Python 3.11+
 * Ollama running locally
 * A local Ollama model, such as `qwen2.5:7b`
-* `ffmpeg` for audio transcription
 * Python dependencies from `requirements.txt`
 
 Install dependencies:
@@ -31,11 +30,7 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-Install `ffmpeg` on macOS if needed:
-
-```bash
-brew install ffmpeg
-```
+No system `ffmpeg` is needed: faster-whisper decodes audio through PyAV, which bundles the FFmpeg libraries.
 
 Pull your Ollama model:
 
@@ -63,7 +58,23 @@ Generate a meeting note with related prior meetings:
 python main.py summarize transcript.txt --title "Sprint Planning" --out "/path/to/Obsidian/Meetings" --link-related
 ```
 
-For audio, the workflow is intentionally two steps: transcribe to a `.txt` first, then summarize that transcript.
+Summarize an audio file in one command. The transcript is saved to a `transcripts/` subfolder of `--out`, then the note is generated from it:
+
+```bash
+python main.py summarize memo.m4a --title "Sprint Planning" --out "/path/to/Obsidian/Meetings"
+```
+
+Recognized audio extensions are `.m4a`, `.mp3`, `.wav`, `.aac`, and `.flac`. Pick the transcription model with `--whisper-model` (`tiny`, `base`, `small`, `medium`; see Limitations for the tradeoff).
+
+Notes are named `YYYY-MM-DD-<slug>.md`, dated today unless you pass `--date`:
+
+```bash
+python main.py summarize memo.m4a --title "Sprint Planning" --out "/path/to/Obsidian/Meetings" --date 2026-01-15
+```
+
+Re-running the same command refuses to overwrite the existing note. Pass `--force` to rewrite it; the note's `Action Items.md` section is left untouched either way, so checked boxes survive.
+
+The two-step workflow still works if you want the transcript on its own.
 
 Transcribe an audio file locally:
 
@@ -105,7 +116,7 @@ The team agreed to lock the release scope by Friday and defer the analytics dash
 
 ## Related Meetings
 
-- [[sprint-planning-2026-XX-XX]] — Score: 6
+- [[2026-01-08-sprint-planning]] — Score: 6
   - Reason: Shared title keyword: sprint
   - Reason: Shared content keywords: release, qa
 ```

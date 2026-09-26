@@ -4,6 +4,9 @@ from pathlib import Path
 from src.note_writer import safe_filename
 
 
+AUDIO_EXTENSIONS = {".m4a", ".mp3", ".wav", ".aac", ".flac"}
+
+
 @dataclass(frozen=True)
 class TranscriptSegment:
     start_seconds: int | float
@@ -41,12 +44,17 @@ def write_transcript(
     folder_path: str | Path,
     audio_path: str | Path,
     segments: list[TranscriptSegment],
+    stem: str | None = None,
 ) -> Path:
-    """Write a timestamped transcript to an explicitly selected folder."""
+    """Write a timestamped transcript to an explicitly selected folder.
+
+    A given stem names the file instead of the audio filename.
+    """
     folder = Path(folder_path)
     folder.mkdir(parents=True, exist_ok=True)
 
-    transcript_path = folder / transcript_filename(audio_path)
+    filename = f"{stem}.txt" if stem else transcript_filename(audio_path)
+    transcript_path = folder / filename
     transcript_path.write_text(format_transcript(segments), encoding="utf-8")
 
     return transcript_path
@@ -57,6 +65,9 @@ def transcribe_audio(
     model_size: str = "base",
 ) -> list[TranscriptSegment]:
     """Transcribe a local audio file with faster-whisper."""
+    if not Path(audio_path).exists():
+        raise RuntimeError(f"Audio file not found: '{audio_path}'.")
+
     model = _create_whisper_model(model_size)
     try:
         segments, _info = model.transcribe(str(audio_path))
@@ -67,10 +78,7 @@ def transcribe_audio(
         ]
     except Exception as exc:
         raise RuntimeError(
-            f"Could not transcribe audio file '{audio_path}'. "
-            "Check that the file exists, is a supported audio format, and that "
-            "ffmpeg is installed for decoding common audio formats. "
-            "On macOS, you may need `brew install ffmpeg`."
+            f"Could not transcribe audio file '{audio_path}': {exc}"
         ) from exc
 
 
@@ -84,4 +92,4 @@ def _create_whisper_model(model_size: str):
             "`pip install faster-whisper`."
         ) from exc
 
-    return WhisperModel(model_size)
+    return WhisperModel(model_size, device="cpu", compute_type="int8")

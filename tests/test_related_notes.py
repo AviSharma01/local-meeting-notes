@@ -353,12 +353,45 @@ def test_find_related_notes_uses_filename_as_tie_breaker():
     assert [match.note.filename for match in matches] == ["a.md", "b.md"]
 
 
-def test_find_related_notes_excludes_exact_same_title():
+def test_find_related_notes_excludes_the_current_note_by_stem():
     candidates = [
-        make_note("Sprint Planning", "same.md", tags=["sprint"], content="planning")
+        make_note(
+            "Sprint Planning",
+            "2026-01-15-sprint-planning.md",
+            tags=["sprint"],
+            content="planning",
+        )
     ]
 
-    assert find_related_notes("Sprint Planning", "sprint planning", candidates) == []
+    assert find_related_notes(
+        "Sprint Planning",
+        "sprint planning",
+        candidates,
+        current_stem="2026-01-15-sprint-planning",
+    ) == []
+
+
+def test_find_related_notes_matches_the_same_title_on_a_different_date():
+    candidates = [
+        make_note(
+            "Sprint Planning",
+            "2026-01-15-sprint-planning.md",
+            tags=["sprint"],
+            content="planning",
+        )
+    ]
+
+    matches = find_related_notes(
+        "Sprint Planning",
+        "sprint planning",
+        candidates,
+        current_stem="2026-02-01-sprint-planning",
+    )
+
+    assert [match.note.filename for match in matches] == [
+        "2026-01-15-sprint-planning.md"
+    ]
+    assert "Shared title keyword: planning" in matches[0].reasons
 
 
 def test_find_related_notes_includes_useful_reasons():

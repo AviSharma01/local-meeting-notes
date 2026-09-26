@@ -1,4 +1,4 @@
-from src.action_items import append_action_items
+from src.action_items import action_items_section_exists, append_action_items
 from src.models import ActionItem
 
 
@@ -68,3 +68,39 @@ def test_append_action_items_adds_source_line(tmp_path):
 
     content = (tmp_path / "Action Items.md").read_text(encoding="utf-8")
     assert "  - Source: [[Sample Meeting]]" in content
+
+
+def test_append_action_items_links_the_note_stem(tmp_path):
+    append_action_items(
+        str(tmp_path),
+        "2026-01-15-sample-meeting",
+        [ActionItem(task="Send notes", owner="Avi", due="Friday")],
+    )
+
+    content = (tmp_path / "Action Items.md").read_text(encoding="utf-8")
+    assert "## From [[2026-01-15-sample-meeting]]" in content
+    assert "  - Source: [[2026-01-15-sample-meeting]]" in content
+
+
+def test_action_items_section_exists_is_false_without_the_file(tmp_path):
+    assert action_items_section_exists(tmp_path, "2026-01-15-sample-meeting") is False
+
+
+def test_action_items_section_exists_finds_an_appended_section(tmp_path):
+    append_action_items(
+        str(tmp_path),
+        "2026-01-15-sample-meeting",
+        [ActionItem(task="Send notes")],
+    )
+
+    assert action_items_section_exists(tmp_path, "2026-01-15-sample-meeting") is True
+
+
+def test_action_items_section_exists_separates_dates_for_one_title(tmp_path):
+    append_action_items(
+        str(tmp_path),
+        "2026-01-15-sample-meeting",
+        [ActionItem(task="Send notes")],
+    )
+
+    assert action_items_section_exists(tmp_path, "2026-02-01-sample-meeting") is False

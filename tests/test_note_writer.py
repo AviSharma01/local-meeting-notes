@@ -1,4 +1,6 @@
-from src.note_writer import safe_filename, write_markdown_note
+from datetime import date
+
+from src.note_writer import note_stem, safe_filename, write_markdown_note
 
 
 def test_safe_filename_handles_normal_titles():
@@ -19,6 +21,35 @@ def test_safe_filename_handles_empty_titles():
 def test_safe_filename_does_not_duplicate_selected_extension():
     assert safe_filename("Sprint Planning.md") == "sprint-planning.md"
     assert safe_filename("Sprint Planning.txt", extension="txt") == "sprint-planning.txt"
+
+
+def test_note_stem_prefixes_the_slug_with_the_date():
+    assert note_stem(date(2026, 1, 15), "Sprint Planning") == "2026-01-15-sprint-planning"
+
+
+def test_note_stem_uses_the_safe_slug():
+    stem = note_stem(date(2026, 1, 15), 'Sprint/Planning: QA? "Beta"')
+
+    assert stem == "2026-01-15-sprint-planning-qa-beta"
+
+
+def test_note_stem_carries_no_extension_for_a_title_ending_in_md():
+    stem = note_stem(date(2026, 1, 15), "Sprint Planning.md")
+
+    assert stem == "2026-01-15-sprint-planning"
+    assert not stem.endswith(".md")
+
+
+def test_note_stem_handles_empty_titles():
+    assert note_stem(date(2026, 1, 15), "   ") == "2026-01-15-meeting-notes"
+
+
+def test_write_markdown_note_writes_a_dated_stem_unchanged(tmp_path):
+    note_path = write_markdown_note(
+        str(tmp_path), "2026-01-15-sprint-planning", "# Notes"
+    )
+
+    assert note_path.name == "2026-01-15-sprint-planning.md"
 
 
 def test_write_markdown_note_creates_markdown_file(tmp_path):
