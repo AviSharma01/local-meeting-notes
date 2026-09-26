@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 import main
@@ -10,10 +11,23 @@ from src.transcriber import TranscriptSegment
 runner = CliRunner()
 
 
-def test_preview_command_still_works():
+@pytest.fixture
+def sample_transcript(tmp_path):
+    path = tmp_path / "sample_meeting_short.txt"
+    path.write_text(
+        "[00:00] Alex: Let's start with the launch checklist.\n"
+        "[00:15] Priya: The docs are ready, but QA needs one more pass.\n"
+        "[00:35] Sam: I can own the QA pass by Friday.\n"
+        "[00:50] Alex: Great. Decision: keep the beta launch date for next Tuesday.\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_preview_command_still_works(sample_transcript):
     result = runner.invoke(
         main.app,
-        ["preview", "tests/fixtures/sample_meeting_short.txt"],
+        ["preview", str(sample_transcript)],
     )
 
     assert result.exit_code == 0
@@ -94,7 +108,9 @@ def test_transcribe_command_passes_selected_model(monkeypatch, tmp_path):
     assert (tmp_path / "meeting.txt").exists()
 
 
-def test_summarize_command_generates_and_saves_note(monkeypatch, tmp_path):
+def test_summarize_command_generates_and_saves_note(
+    monkeypatch, tmp_path, sample_transcript
+):
     generated_notes = "\n\n# Summary\n\nLaunch stays on track.\n\n"
     captured = {}
 
@@ -109,7 +125,7 @@ def test_summarize_command_generates_and_saves_note(monkeypatch, tmp_path):
         main.app,
         [
             "summarize",
-            "tests/fixtures/sample_meeting_short.txt",
+            str(sample_transcript),
             "--title",
             "Sample Meeting",
             "--out",
@@ -140,7 +156,9 @@ def test_summarize_command_generates_and_saves_note(monkeypatch, tmp_path):
     assert not (tmp_path / "Action Items.md").exists()
 
 
-def test_summarize_command_passes_selected_model(monkeypatch, tmp_path):
+def test_summarize_command_passes_selected_model(
+    monkeypatch, tmp_path, sample_transcript
+):
     captured = {}
 
     def fake_generate_meeting_notes(transcript, model):
@@ -153,7 +171,7 @@ def test_summarize_command_passes_selected_model(monkeypatch, tmp_path):
         main.app,
         [
             "summarize",
-            "tests/fixtures/sample_meeting_short.txt",
+            str(sample_transcript),
             "--title",
             "Sample Meeting",
             "--out",
@@ -171,7 +189,9 @@ def test_summarize_command_passes_selected_model(monkeypatch, tmp_path):
     assert "model: test-model" in saved_note
 
 
-def test_summarize_command_uses_out_as_output_folder(monkeypatch, tmp_path):
+def test_summarize_command_uses_out_as_output_folder(
+    monkeypatch, tmp_path, sample_transcript
+):
     monkeypatch.setattr(
         main,
         "generate_meeting_notes",
@@ -183,7 +203,7 @@ def test_summarize_command_uses_out_as_output_folder(monkeypatch, tmp_path):
         main.app,
         [
             "summarize",
-            "tests/fixtures/sample_meeting_short.txt",
+            str(sample_transcript),
             "--title",
             "Nested Meeting",
             "--out",
@@ -195,7 +215,9 @@ def test_summarize_command_uses_out_as_output_folder(monkeypatch, tmp_path):
     assert (out / Path("nested-meeting.md")).exists()
 
 
-def test_summarize_command_appends_action_items(monkeypatch, tmp_path):
+def test_summarize_command_appends_action_items(
+    monkeypatch, tmp_path, sample_transcript
+):
     generated_notes = """# Summary
 
 Launch planning happened.
@@ -216,7 +238,7 @@ Launch planning happened.
         main.app,
         [
             "summarize",
-            "tests/fixtures/sample_meeting_short.txt",
+            str(sample_transcript),
             "--title",
             "Sample Meeting",
             "--out",
@@ -247,6 +269,7 @@ Launch planning happened.
 def test_summarize_command_does_not_create_action_items_when_none_found(
     monkeypatch,
     tmp_path,
+    sample_transcript,
 ):
     monkeypatch.setattr(
         main,
@@ -258,7 +281,7 @@ def test_summarize_command_does_not_create_action_items_when_none_found(
         main.app,
         [
             "summarize",
-            "tests/fixtures/sample_meeting_short.txt",
+            str(sample_transcript),
             "--title",
             "Sample Meeting",
             "--out",
@@ -276,6 +299,7 @@ def test_summarize_command_does_not_create_action_items_when_none_found(
 def test_summarize_command_does_not_load_related_notes_without_flag(
     monkeypatch,
     tmp_path,
+    sample_transcript,
 ):
     monkeypatch.setattr(
         main,
@@ -292,7 +316,7 @@ def test_summarize_command_does_not_load_related_notes_without_flag(
         main.app,
         [
             "summarize",
-            "tests/fixtures/sample_meeting_short.txt",
+            str(sample_transcript),
             "--title",
             "Sample Meeting",
             "--out",
@@ -307,6 +331,7 @@ def test_summarize_command_does_not_load_related_notes_without_flag(
 def test_summarize_command_link_related_adds_related_meetings_section(
     monkeypatch,
     tmp_path,
+    sample_transcript,
 ):
     previous_note = tmp_path / "sample-retro.md"
     previous_note.write_text(
@@ -332,7 +357,7 @@ Discussed launch QA.
         main.app,
         [
             "summarize",
-            "tests/fixtures/sample_meeting_short.txt",
+            str(sample_transcript),
             "--title",
             "Sample Meeting",
             "--out",
@@ -354,6 +379,7 @@ Discussed launch QA.
 def test_summarize_command_link_related_with_no_matches_adds_no_empty_section(
     monkeypatch,
     tmp_path,
+    sample_transcript,
 ):
     previous_note = tmp_path / "budget-review.md"
     previous_note.write_text(
@@ -370,7 +396,7 @@ def test_summarize_command_link_related_with_no_matches_adds_no_empty_section(
         main.app,
         [
             "summarize",
-            "tests/fixtures/sample_meeting_short.txt",
+            str(sample_transcript),
             "--title",
             "Sample Meeting",
             "--out",
@@ -391,6 +417,7 @@ def test_summarize_command_link_related_with_no_matches_adds_no_empty_section(
 def test_summarize_command_appends_action_items_when_related_meetings_are_added(
     monkeypatch,
     tmp_path,
+    sample_transcript,
 ):
     (tmp_path / "sample-retro.md").write_text(
         "# Sample Retro\n\n## Summary\n\nDiscussed launch QA.",
@@ -415,7 +442,7 @@ Launch QA stayed on track.
         main.app,
         [
             "summarize",
-            "tests/fixtures/sample_meeting_short.txt",
+            str(sample_transcript),
             "--title",
             "Sample Meeting",
             "--out",

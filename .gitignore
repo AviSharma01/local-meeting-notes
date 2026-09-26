@@ -18,6 +18,8 @@ output/
 *.mp4
 *.mov
 
+docs/phases
+
 # Local transcription outputs
 transcripts/
 *.transcript.txt
@@ -28,3 +30,4 @@ sample_audio/
 audio/
 recordings/
 test_obsidian_meetings/
+tests/fixtures/

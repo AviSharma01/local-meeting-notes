@@ -1,7 +1,5 @@
-typer
-rich
-ollama
-requests
-pytest
-python-dotenv
-faster-whisper
+typer==0.27.2
+rich==15.0.0
+requests==2.34.2
+faster-whisper==1.2.1
+pydantic==2.13.5
