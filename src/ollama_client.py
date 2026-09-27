@@ -4,9 +4,9 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
-from src.models import MeetingExtraction
+from src.models import DebriefExtraction, MeetingExtraction
 
 
 DEFAULT_MODEL = "qwen2.5:7b"
@@ -17,6 +17,7 @@ NUM_CTX = 8192
 RESPONSE_TOKEN_RESERVE = 2048
 REQUEST_TIMEOUT_SECONDS = 300
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "meeting_summary_prompt.md"
+DEBRIEF_PROMPT_PATH = PROMPT_PATH.parent / "debrief_prompt.md"
 
 
 def ollama_base_url() -> str:
@@ -44,10 +45,25 @@ def estimate_tokens(text: str) -> int:
 
 def extract_meeting(transcript: str, model: str = DEFAULT_MODEL) -> MeetingExtraction:
     """Extract validated meeting data from a transcript using a local Ollama model."""
+    return _extract(transcript, model, PROMPT_PATH, MeetingExtraction, "meeting")
+
+
+def extract_debrief(transcript: str, model: str = DEFAULT_MODEL) -> DebriefExtraction:
+    """Extract validated debrief data from a voice-memo transcript using a local Ollama model."""
+    return _extract(transcript, model, DEBRIEF_PROMPT_PATH, DebriefExtraction, "debrief")
+
+
+def _extract(
+    transcript: str,
+    model: str,
+    prompt_path: Path,
+    schema: type[BaseModel],
+    label: str,
+) -> BaseModel:
     if not transcript.strip():
         raise ValueError("Transcript cannot be empty.")
 
-    prompt_template = PROMPT_PATH.read_text(encoding="utf-8")
+    prompt_template = prompt_path.read_text(encoding="utf-8")
     prompt = prompt_template.replace("{{ transcript }}", transcript)
 
     estimated_tokens = estimate_tokens(prompt)
@@ -62,7 +78,7 @@ def extract_meeting(transcript: str, model: str = DEFAULT_MODEL) -> MeetingExtra
     generate_url = f"{ollama_base_url()}/api/generate"
 
     try:
-        return MeetingExtraction.model_validate_json(_generate(generate_url, model, prompt))
+        return schema.model_validate_json(_generate(generate_url, model, prompt))
     except ValidationError as error:
         retry_prompt = (
             f"{prompt}\n\n"
@@ -71,10 +87,10 @@ def extract_meeting(transcript: str, model: str = DEFAULT_MODEL) -> MeetingExtra
         )
 
     try:
-        return MeetingExtraction.model_validate_json(_generate(generate_url, model, retry_prompt))
+        return schema.model_validate_json(_generate(generate_url, model, retry_prompt))
     except ValidationError as error:
         raise RuntimeError(
-            f"Ollama returned invalid meeting JSON after one retry.\n{error}"
+            f"Ollama returned invalid {label} JSON after one retry.\n{error}"
         ) from error
 
 

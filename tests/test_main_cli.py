@@ -5,7 +5,7 @@ import pytest
 from typer.testing import CliRunner
 
 import main
-from src.models import ActionItem, MeetingExtraction
+from src.models import ActionItem, DebriefExtraction, MeetingExtraction, Person
 from src.note_writer import note_stem, safe_filename
 from src.transcriber import TranscriptSegment
 
@@ -915,3 +915,149 @@ def test_summarize_command_appends_action_items_when_related_meetings_are_added(
     assert "## Related Meetings" in saved_note
     assert "- [ ] Send launch notes" in action_items_content
     assert f"  - Source: [[{SAMPLE_STEM}]]" in action_items_content
+
+
+DEBRIEF_STEM = f"{NOTE_DATE}-northwind-debrief"
+SEND_PORTFOLIO = ActionItem(task="Send portfolio link", owner="Me", due="Friday, October 3rd")
+PRIYA_REPLY = ActionItem(task="Get back about the next round", owner="Priya Raman", due="within a week")
+
+
+def make_debrief(commitments=()):
+    return DebriefExtraction(
+        summary="First technical round went well.",
+        questions_asked=["Write a 7-day retention query"],
+        weak_spots=["Window functions"],
+        people_mentioned=[Person(name="Priya Raman", role="Analytics manager")],
+        commitments=list(commitments),
+        open_questions=["Salary range"],
+    )
+
+
+def run_debrief(tmp_path, transcript_path, *extra_args):
+    return runner.invoke(
+        main.app,
+        [
+            "summarize",
+            str(transcript_path),
+            "--mode",
+            "debrief",
+            "--out",
+            str(tmp_path),
+            "--date",
+            NOTE_DATE,
+            *extra_args,
+        ],
+    )
+
+
+def test_summarize_debrief_writes_note_with_six_sections_and_company(
+    monkeypatch, tmp_path, sample_transcript
+):
+    monkeypatch.setattr(main, "extract_meeting", fail_if_called)
+    monkeypatch.setattr(
+        main, "extract_debrief", lambda transcript, model: make_debrief([SEND_PORTFOLIO])
+    )
+
+    result = run_debrief(tmp_path, sample_transcript, "--company", "Northwind")
+
+    assert result.exit_code == 0, result.output
+    saved_note = (tmp_path / f"{DEBRIEF_STEM}.md").read_text(encoding="utf-8")
+    assert saved_note.startswith("---\ntype: debrief\n")
+    assert f"date: {NOTE_DATE}" in saved_note
+    assert "company: Northwind\n" in saved_note
+    assert "tags:\n  - debrief" in saved_note
+    assert "# Debrief: Northwind debrief\n\n## Summary" in saved_note
+    for heading in [
+        "## Summary",
+        "## Questions Asked",
+        "## Weak Spots to Prep",
+        "## People Mentioned",
+        "## Commitments",
+        "## Open Questions",
+    ]:
+        assert heading in saved_note
+    assert "## Meeting Health" not in saved_note
+    assert "- [ ] Send portfolio link — Owner: Me — Due: Friday, October 3rd" in saved_note
+
+
+def test_summarize_debrief_uses_explicit_title(monkeypatch, tmp_path, sample_transcript):
+    monkeypatch.setattr(main, "extract_debrief", lambda transcript, model: make_debrief())
+
+    result = run_debrief(
+        tmp_path, sample_transcript, "--company", "Northwind", "--title", "Round One"
+    )
+
+    assert result.exit_code == 0, result.output
+    saved_note = (tmp_path / f"{NOTE_DATE}-round-one.md").read_text(encoding="utf-8")
+    assert "# Debrief: Round One" in saved_note
+    assert "company: Northwind" in saved_note
+
+
+def test_summarize_debrief_without_company_fails_clearly(
+    monkeypatch, tmp_path, sample_transcript
+):
+    monkeypatch.setattr(main, "extract_debrief", fail_if_called)
+
+    result = run_debrief(tmp_path, sample_transcript, "--title", "Round One")
+
+    assert result.exit_code == 1
+    assert "--company is required with --mode debrief." in result.output
+    assert list(tmp_path.glob("*.md")) == []
+
+
+def test_summarize_meeting_without_title_fails_clearly(
+    monkeypatch, tmp_path, sample_transcript
+):
+    monkeypatch.setattr(main, "extract_meeting", fail_if_called)
+
+    result = runner.invoke(
+        main.app, ["summarize", str(sample_transcript), "--out", str(tmp_path)]
+    )
+
+    assert result.exit_code == 1
+    assert "--title is required in meeting mode." in result.output
+    assert list(tmp_path.glob("*.md")) == []
+
+
+def test_summarize_meeting_rejects_company(monkeypatch, tmp_path, sample_transcript):
+    monkeypatch.setattr(main, "extract_meeting", fail_if_called)
+
+    result = runner.invoke(
+        main.app,
+        [
+            "summarize",
+            str(sample_transcript),
+            "--title",
+            "Sample Meeting",
+            "--company",
+            "Northwind",
+            "--out",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "--company is only used with --mode debrief." in result.output
+    assert list(tmp_path.glob("*.md")) == []
+
+
+def test_summarize_debrief_appends_commitments_once_after_rerun(
+    monkeypatch, tmp_path, sample_transcript
+):
+    monkeypatch.setattr(
+        main,
+        "extract_debrief",
+        lambda transcript, model: make_debrief([SEND_PORTFOLIO, PRIYA_REPLY]),
+    )
+
+    first = run_debrief(tmp_path, sample_transcript, "--company", "Northwind")
+    second = run_debrief(tmp_path, sample_transcript, "--company", "Northwind", "--force")
+
+    assert first.exit_code == 0, first.output
+    assert second.exit_code == 0, second.output
+    action_items = (tmp_path / "Action Items.md").read_text(encoding="utf-8")
+    assert action_items.count(f"## From [[{DEBRIEF_STEM}]]") == 1
+    assert action_items.count("Send portfolio link") == 1
+    assert "- [ ] Get back about the next round — Owner: Priya Raman — Due: within a week" in action_items
+    assert f"  - Source: [[{DEBRIEF_STEM}]]" in action_items
+    assert f"Action items for [[{DEBRIEF_STEM}]] already exist" in second.output

@@ -1,4 +1,4 @@
-from src.models import ActionItem, MeetingExtraction
+from src.models import ActionItem, DebriefExtraction, MeetingExtraction
 
 
 EMPTY_SECTION = "None explicitly mentioned."
@@ -54,6 +54,25 @@ def render_meeting(extraction: MeetingExtraction) -> str:
         ("Needs Review", _bullets(extraction.needs_review)),
         ("Meeting Health", "\n".join(health)),
         ("Evidence / Timestamps", _join(evidence)),
+    ]
+
+    return "\n\n".join(f"## {heading}\n\n{body}" for heading, body in sections)
+
+
+def render_debrief(extraction: DebriefExtraction) -> str:
+    """Render a validated debrief extraction to the Markdown note sections."""
+    people = [
+        f"- {person.name} — {person.role}" if person.role else f"- {person.name}"
+        for person in extraction.people_mentioned
+    ]
+
+    sections = [
+        ("Summary", extraction.summary.strip() or EMPTY_SECTION),
+        ("Questions Asked", _bullets(extraction.questions_asked)),
+        ("Weak Spots to Prep", _bullets(extraction.weak_spots)),
+        ("People Mentioned", _join(people)),
+        ("Commitments", _join([render_action_item(item) for item in extraction.commitments])),
+        ("Open Questions", _bullets(extraction.open_questions)),
     ]
 
     return "\n\n".join(f"## {heading}\n\n{body}" for heading, body in sections)

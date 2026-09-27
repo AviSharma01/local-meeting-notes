@@ -75,8 +75,10 @@ STOP_WORDS = {
     "note",
     "discussed",
     "reviewed",
+    "debrief",
+    "debriefs",
 }
-GENERIC_TAGS = {"meeting-notes"}
+GENERIC_TAGS = {"meeting-notes", "debrief"}
 SHORT_DOMAIN_WORDS = {"qa", "ui", "ux", "ai", "ml", "db", "ab"}
 SPEAKER_LABEL_PATTERN = re.compile(
     r"^\s*(?:\[\d{2}:\d{2}(?::\d{2})?\]\s*)?([A-Za-z][A-Za-z\s'-]*):"
@@ -86,6 +88,10 @@ KEYWORD_SECTIONS = {
     "Key Decisions",
     "Action Items",
     "Evidence / Timestamps",
+    "Questions Asked",
+    "Weak Spots to Prep",
+    "People Mentioned",
+    "Commitments",
 }
 NOISY_KEYWORD_SECTIONS = {
     "Meeting Health",
@@ -106,6 +112,7 @@ class MeetingNote:
     tags: list[str]
     summary: str
     date: str | None
+    company: str | None = None
 
 
 @dataclass(frozen=True)
@@ -143,6 +150,7 @@ def load_meeting_notes(folder_path: str | Path) -> list[MeetingNote]:
                 tags=_extract_tags(frontmatter_lines),
                 summary=_extract_summary(content),
                 date=_extract_date(frontmatter_lines),
+                company=_frontmatter_value(frontmatter_lines, "company"),
             )
         )
 
@@ -160,9 +168,14 @@ def find_related_notes(
     if limit <= 0:
         return []
 
+    current_frontmatter = _extract_frontmatter(current_content)
+    current_company = _frontmatter_value(current_frontmatter, "company")
     current_title_words = _meaningful_words(current_title)
     current_keyword_text = _extract_keyword_text(current_content)
-    current_words = current_title_words | _content_words(current_keyword_text)
+    current_words = current_title_words | _content_words(
+        current_keyword_text,
+        _is_debrief(current_frontmatter),
+    )
     matches = []
 
     for note in candidate_notes:
@@ -171,6 +184,9 @@ def find_related_notes(
 
         score = 0
         reasons = []
+
+        if _same_company(current_company, note.company):
+            reasons.append(f"Same company: {note.company}")
 
         shared_title_words = sorted(current_title_words & _meaningful_words(note.title))
         if shared_title_words:
@@ -183,7 +199,10 @@ def find_related_notes(
                 score += 2
                 reasons.append(f"Shared tag: {tag}")
 
-        candidate_words = _content_words(_extract_keyword_text(note.content))
+        candidate_words = _content_words(
+            _extract_keyword_text(note.content),
+            _is_debrief(_extract_frontmatter(note.content)),
+        )
         shared_content_keywords = sorted(current_words & candidate_words)
         if shared_content_keywords:
             scored_keywords = shared_content_keywords[:5]
@@ -192,7 +211,7 @@ def find_related_notes(
                 "Shared content keywords: " + ", ".join(scored_keywords)
             )
 
-        if score > 0:
+        if score > 0 or _same_company(current_company, note.company):
             matches.append(
                 RelatedNoteMatch(
                     note=note,
@@ -201,7 +220,14 @@ def find_related_notes(
                 )
             )
 
-    return sorted(matches, key=lambda match: (-match.score, match.note.filename))[:limit]
+    return sorted(
+        matches,
+        key=lambda match: (
+            not _same_company(current_company, match.note.company),
+            -match.score,
+            match.note.filename,
+        ),
+    )[:limit]
 
 
 def format_wiki_link(note: MeetingNote) -> str:
@@ -287,6 +313,28 @@ def _extract_date(frontmatter_lines: list[str]) -> str | None:
     return None
 
 
+def _frontmatter_value(frontmatter_lines: list[str], key: str) -> str | None:
+    for line in frontmatter_lines:
+        stripped_line = line.strip()
+        if stripped_line.startswith(f"{key}:"):
+            value = _clean_yaml_value(stripped_line.removeprefix(f"{key}:").strip())
+            return value or None
+
+    return None
+
+
+def _is_debrief(frontmatter_lines: list[str]) -> bool:
+    return _frontmatter_value(frontmatter_lines, "type") == "debrief"
+
+
+def _same_company(current_company: str | None, candidate_company: str | None) -> bool:
+    return bool(
+        current_company
+        and candidate_company
+        and current_company.casefold() == candidate_company.casefold()
+    )
+
+
 def _extract_summary(content: str) -> str:
     summary_lines = []
     in_summary = False
@@ -341,7 +389,9 @@ def _meaningful_words(text: str) -> set[str]:
     }
 
 
-def _content_words(text: str) -> set[str]:
+def _content_words(text: str, is_debrief: bool = False) -> set[str]:
+    if is_debrief:
+        return _meaningful_words(text)
     return _meaningful_words(text) - _extract_speaker_labels(text)
 
 

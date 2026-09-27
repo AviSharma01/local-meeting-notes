@@ -1,5 +1,5 @@
-from src.models import ActionItem, Decision, MeetingExtraction
-from src.renderer import render_action_item, render_meeting
+from src.models import ActionItem, DebriefExtraction, Decision, MeetingExtraction, Person
+from src.renderer import render_action_item, render_debrief, render_meeting
 
 
 def make_extraction(**overrides):
@@ -138,3 +138,47 @@ def test_render_action_item_without_evidence_has_no_evidence_line():
     assert render_action_item(ActionItem(task="Send notes", owner="Avi")) == (
         "- [ ] Send notes — Owner: Avi — Due: Unknown"
     )
+
+
+DEBRIEF_SECTIONS = [
+    "## Summary",
+    "## Questions Asked",
+    "## Weak Spots to Prep",
+    "## People Mentioned",
+    "## Commitments",
+    "## Open Questions",
+]
+
+
+def test_render_debrief_renders_six_sections_in_order():
+    rendered = render_debrief(
+        DebriefExtraction(
+            summary="First technical round.",
+            questions_asked=["Write a retention query"],
+            weak_spots=["Window functions"],
+            people_mentioned=[
+                Person(name="Priya Raman", role="Analytics manager"),
+                Person(name="Tong"),
+            ],
+            commitments=[
+                ActionItem(task="Send portfolio link", owner="Me", due="Friday", evidence="[01:05]")
+            ],
+            open_questions=["Salary range"],
+        )
+    )
+
+    positions = [rendered.index(heading) for heading in DEBRIEF_SECTIONS]
+    assert positions == sorted(positions)
+    assert "- Write a retention query" in rendered
+    assert "- Window functions" in rendered
+    assert "- Priya Raman — Analytics manager" in rendered
+    assert "- Tong\n" in rendered
+    assert "- [ ] Send portfolio link — Owner: Me — Due: Friday\n  - Evidence: [01:05]" in rendered
+    assert "- Salary range" in rendered
+
+
+def test_render_debrief_marks_empty_sections():
+    rendered = render_debrief(DebriefExtraction(summary=""))
+
+    for heading in DEBRIEF_SECTIONS:
+        assert f"{heading}\n\nNone explicitly mentioned." in rendered

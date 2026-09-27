@@ -9,13 +9,13 @@ from rich.panel import Panel
 
 from src.action_items import action_items_section_exists, append_action_items
 from src.note_writer import note_stem, write_markdown_note
-from src.ollama_client import DEFAULT_MODEL, extract_meeting
+from src.ollama_client import DEFAULT_MODEL, extract_debrief, extract_meeting
 from src.related_notes import (
     find_related_notes,
     format_related_meetings_section,
     load_meeting_notes,
 )
-from src.renderer import render_meeting
+from src.renderer import render_debrief, render_meeting
 from src.transcript_cleaner import clean_transcript
 from src.transcripts import read_transcript
 from src.transcriber import (
@@ -40,6 +40,11 @@ class WhisperModelSize(str, Enum):
     base = "base"
     small = "small"
     medium = "medium"
+
+
+class Mode(str, Enum):
+    meeting = "meeting"
+    debrief = "debrief"
 
 
 def report_errors(command):
@@ -75,6 +80,31 @@ def format_meeting_note(
         "  - meeting-notes\n"
         "---\n\n"
         f"# Meeting Notes: {title}\n\n"
+        f"{cleaned_notes}"
+    )
+
+
+def format_debrief_note(
+    title: str,
+    company: str,
+    model: str,
+    generated_notes: str,
+    note_date: date,
+    source: str,
+) -> str:
+    """Wrap a rendered debrief with Obsidian-friendly metadata."""
+    cleaned_notes = generated_notes.strip()
+    return (
+        "---\n"
+        "type: debrief\n"
+        f"date: {note_date.isoformat()}\n"
+        f"company: {company}\n"
+        f"source: {source}\n"
+        f"model: {model}\n"
+        "tags:\n"
+        "  - debrief\n"
+        "---\n\n"
+        f"# Debrief: {title}\n\n"
         f"{cleaned_notes}"
     )
 
@@ -121,8 +151,19 @@ def transcribe(
 @report_errors
 def summarize(
     input_path: Path,
-    title: str = typer.Option(..., "--title", help="Meeting title for the saved note."),
+    title: str | None = typer.Option(
+        None,
+        "--title",
+        help="Title for the saved note. Required in meeting mode; "
+        "defaults to '<Company> debrief' in debrief mode.",
+    ),
     out: Path = typer.Option(..., "--out", help="Output folder for the Markdown note."),
+    mode: Mode = typer.Option(Mode.meeting, "--mode", help="Kind of note to write."),
+    company: str | None = typer.Option(
+        None,
+        "--company",
+        help="Company the debrief is about. Required in debrief mode.",
+    ),
     model: str = typer.Option(DEFAULT_MODEL, "--model", help="Local Ollama model to use."),
     note_date: datetime | None = typer.Option(
         None,
@@ -147,6 +188,16 @@ def summarize(
     ),
 ) -> None:
     """Generate and save Markdown meeting notes from a transcript or audio file."""
+    if mode is Mode.debrief:
+        if not company:
+            raise ValueError("--company is required with --mode debrief.")
+        title = title or f"{company} debrief"
+    else:
+        if company:
+            raise ValueError("--company is only used with --mode debrief.")
+        if not title:
+            raise ValueError("--title is required in meeting mode.")
+
     selected_date = note_date.date() if note_date else date.today()
     stem = note_stem(selected_date, title)
     note_path = out / f"{stem}.md"
@@ -173,15 +224,29 @@ def summarize(
         source = "transcript"
 
     cleaned_transcript = clean_transcript(transcript)
-    with console.status("Generating notes..."):
-        extraction = extract_meeting(cleaned_transcript, model=model)
-    notes = format_meeting_note(
-        title,
-        model,
-        render_meeting(extraction),
-        selected_date,
-        source,
-    )
+    if mode is Mode.debrief:
+        with console.status("Generating notes..."):
+            extraction = extract_debrief(cleaned_transcript, model=model)
+        notes = format_debrief_note(
+            title,
+            company,
+            model,
+            render_debrief(extraction),
+            selected_date,
+            source,
+        )
+        action_items = extraction.commitments
+    else:
+        with console.status("Generating notes..."):
+            extraction = extract_meeting(cleaned_transcript, model=model)
+        notes = format_meeting_note(
+            title,
+            model,
+            render_meeting(extraction),
+            selected_date,
+            source,
+        )
+        action_items = extraction.action_items
     related_status = None
 
     if link_related:
@@ -212,14 +277,14 @@ def summarize(
     if related_status:
         console.print(related_status)
 
-    if not extraction.action_items:
+    if not action_items:
         console.print("No action items found; Action Items.md was not updated.")
     elif action_items_section_exists(out, stem):
         console.print(
             f"Action items for [[{stem}]] already exist; Action Items.md was not updated."
         )
     else:
-        action_items_path = append_action_items(out, stem, extraction.action_items)
+        action_items_path = append_action_items(out, stem, action_items)
         console.print(f"Updated action items: {action_items_path}")
 
 

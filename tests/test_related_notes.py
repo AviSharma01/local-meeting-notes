@@ -17,6 +17,7 @@ def make_note(
     tags=None,
     summary="",
     date=None,
+    company=None,
 ):
     return MeetingNote(
         title=title,
@@ -26,6 +27,7 @@ def make_note(
         tags=tags or [],
         summary=summary,
         date=date,
+        company=company,
     )
 
 
@@ -773,3 +775,163 @@ def test_format_related_meetings_section_renders_match_with_no_reasons():
 
     assert "- [[sprint-planning]] — Score: 3" in section
     assert "Reason:" not in section
+
+
+def debrief_content(company, summary="None explicitly mentioned.", **sections):
+    headings = {
+        "questions_asked": "Questions Asked",
+        "weak_spots": "Weak Spots to Prep",
+        "people_mentioned": "People Mentioned",
+        "commitments": "Commitments",
+    }
+    body = "\n\n".join(
+        f"## {headings[key]}\n\n{sections.get(key, 'None explicitly mentioned.')}"
+        for key in headings
+    )
+    return (
+        "---\n"
+        "type: debrief\n"
+        f"company: {company}\n"
+        "tags:\n"
+        "  - debrief\n"
+        "---\n\n"
+        f"# Debrief: {company} debrief\n\n"
+        f"## Summary\n\n{summary}\n\n"
+        f"{body}\n\n"
+        "## Open Questions\n\nNone explicitly mentioned."
+    )
+
+
+def test_load_meeting_notes_extracts_company_from_frontmatter(tmp_path):
+    (tmp_path / "debrief.md").write_text(debrief_content("Northwind"), encoding="utf-8")
+    (tmp_path / "meeting.md").write_text("---\ndate: 2026-01-15\n---\n\n# Sync", encoding="utf-8")
+
+    notes = {note.filename: note for note in load_meeting_notes(tmp_path)}
+
+    assert notes["debrief.md"].company == "Northwind"
+    assert notes["meeting.md"].company is None
+
+
+def test_find_related_notes_ranks_same_company_notes_above_keyword_matches():
+    current = debrief_content(
+        "Northwind",
+        summary="Retention query, cohort analysis, dashboard metrics, and SQL windows.",
+    )
+    same_company_first = make_note(
+        "Debrief: Northwind debrief",
+        "2026-01-01-northwind-debrief.md",
+        content=debrief_content("Northwind", summary="Recruiter screen about salary."),
+        tags=["debrief"],
+        company="Northwind",
+    )
+    same_company_second = make_note(
+        "Debrief: Northwind onsite",
+        "2026-01-08-northwind-onsite.md",
+        content=debrief_content("northwind", summary="Onsite loop logistics."),
+        tags=["debrief"],
+        company="northwind",
+    )
+    other_company = make_note(
+        "Debrief: Contoso debrief",
+        "2026-01-05-contoso-debrief.md",
+        content=debrief_content(
+            "Contoso",
+            summary="Retention query, cohort analysis, dashboard metrics, and SQL windows.",
+        ),
+        tags=["debrief"],
+        company="Contoso",
+    )
+
+    matches = find_related_notes(
+        "Northwind debrief",
+        current,
+        [other_company, same_company_second, same_company_first],
+    )
+
+    assert [match.note.filename for match in matches] == [
+        "2026-01-01-northwind-debrief.md",
+        "2026-01-08-northwind-onsite.md",
+        "2026-01-05-contoso-debrief.md",
+    ]
+    assert matches[2].score > matches[0].score
+    assert matches[2].score > matches[1].score
+    assert "Same company: Northwind" in matches[0].reasons
+    assert "Same company: northwind" in matches[1].reasons
+    assert not any(reason.startswith("Same company") for reason in matches[2].reasons)
+
+
+def test_find_related_notes_lists_same_company_note_without_shared_keywords():
+    candidate = make_note(
+        "Debrief: Acme",
+        "acme.md",
+        content=debrief_content("Acme", summary="Recruiter screen."),
+        company="Acme",
+    )
+
+    matches = find_related_notes(
+        "Round two",
+        debrief_content("ACME", summary="Whiteboard exercise."),
+        [candidate],
+    )
+
+    assert len(matches) == 1
+    assert matches[0].reasons == ["Same company: Acme"]
+
+
+def test_find_related_notes_does_not_boost_company_for_meeting_note_without_company():
+    candidate = make_note(
+        "Debrief: Acme",
+        "acme.md",
+        content=debrief_content("Acme", summary="Recruiter screen."),
+        company="Acme",
+    )
+
+    matches = find_related_notes(
+        "Weekly sync",
+        "## Summary\n\nBudget planning.",
+        [candidate],
+    )
+
+    assert matches == []
+
+
+def test_find_related_notes_uses_debrief_section_keywords():
+    current = debrief_content(
+        "Northwind",
+        questions_asked="- Write a retention query",
+        weak_spots="- Windowing",
+        people_mentioned="- Priya — Analytics manager",
+        commitments="- [ ] Send portfolio — Owner: Me — Due: Friday",
+    )
+    candidate = make_note(
+        "Debrief: Contoso",
+        "contoso.md",
+        content=debrief_content(
+            "Contoso",
+            questions_asked="- Explain a retention drop",
+            weak_spots="- Windowing",
+            people_mentioned="- Priya — Recruiter",
+            commitments="- [ ] Update portfolio — Owner: Me — Due: Unknown",
+        ),
+    )
+
+    matches = find_related_notes("Northwind debrief", current, [candidate])
+
+    assert content_keywords_from(matches[0]) == {"retention", "windowing", "priya", "portfolio"}
+
+
+def test_find_related_notes_keeps_names_in_debrief_keywords():
+    summary = "Priya Raman: analytics manager."
+    candidate = make_note(
+        "Debrief: Contoso",
+        "contoso.md",
+        content=debrief_content("Contoso", summary=summary),
+    )
+
+    matches = find_related_notes(
+        "Northwind debrief",
+        debrief_content("Northwind", summary=summary),
+        [candidate],
+    )
+
+    assert content_keywords_from(matches[0]) == {"priya", "raman", "analytics", "manager"}

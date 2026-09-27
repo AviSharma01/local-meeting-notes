@@ -3,11 +3,12 @@ import json
 import pytest
 import requests
 
-from src.models import MeetingExtraction
+from src.models import DebriefExtraction, MeetingExtraction
 from src.ollama_client import (
     DEFAULT_MODEL,
     NUM_CTX,
     REQUEST_TIMEOUT_SECONDS,
+    extract_debrief,
     extract_meeting,
     ollama_base_url,
 )
@@ -124,8 +125,8 @@ def test_extract_meeting_malformed_json_twice_raises_clear_error(monkeypatch):
 
 def test_extract_meeting_schema_mismatch_twice_raises_clear_error(monkeypatch):
     fake_post, calls = fake_post_returning(
-        json.dumps({"summary": "Missing lists."}),
-        json.dumps({"summary": "Still missing lists."}),
+        json.dumps({"decisions": []}),
+        json.dumps({"decisions": []}),
     )
     monkeypatch.setattr(requests, "post", fake_post)
 
@@ -133,7 +134,18 @@ def test_extract_meeting_schema_mismatch_twice_raises_clear_error(monkeypatch):
         extract_meeting("Avi: Hello")
 
     assert len(calls) == 2
-    assert "decisions" in calls[1]["json"]["prompt"].split("Your previous response was invalid")[1]
+    assert "summary" in calls[1]["json"]["prompt"].split("Your previous response was invalid")[1]
+
+
+def test_extract_meeting_accepts_reply_missing_list_fields_without_retry(monkeypatch):
+    reply = {key: value for key, value in VALID_EXTRACTION.items() if key != "needs_review"}
+    fake_post, calls = fake_post_returning(json.dumps(reply))
+    monkeypatch.setattr(requests, "post", fake_post)
+
+    extraction = extract_meeting("Avi: Hello")
+
+    assert len(calls) == 1
+    assert extraction.needs_review == []
 
 
 def test_extract_meeting_over_budget_transcript_raises_without_calling_ollama(monkeypatch):
@@ -244,3 +256,47 @@ def test_extract_meeting_rejects_remote_host_without_calling_ollama(monkeypatch)
 
     with pytest.raises(ValueError, match="OLLAMA_HOST must point to this machine"):
         extract_meeting("Avi: Hello")
+
+
+VALID_DEBRIEF = {
+    "summary": "First technical round.",
+    "questions_asked": ["Write a retention query"],
+    "weak_spots": ["Window functions"],
+    "people_mentioned": [{"name": "Priya Raman", "role": "Analytics manager"}],
+    "commitments": [{"task": "Send portfolio link", "owner": "Me", "due": "Friday"}],
+    "open_questions": ["Salary range"],
+}
+
+
+def test_extract_debrief_uses_debrief_prompt_and_returns_validated_extraction(monkeypatch):
+    memo = "[00:05] I spoke with Priya Raman, the analytics manager."
+    fake_post, calls = fake_post_returning(json.dumps(VALID_DEBRIEF))
+    monkeypatch.setattr(requests, "post", fake_post)
+
+    extraction = extract_debrief(memo, model="test-model")
+
+    assert extraction == DebriefExtraction.model_validate(VALID_DEBRIEF)
+    assert len(calls) == 1
+    prompt = calls[0]["json"]["prompt"]
+    assert memo in prompt
+    assert "{{ transcript }}" not in prompt
+    assert "weak_spots" in prompt
+    assert "decisions" not in prompt
+    assert calls[0]["json"]["model"] == "test-model"
+    assert calls[0]["json"]["format"] == "json"
+
+
+def test_extract_debrief_retries_once_then_raises_clear_error(monkeypatch):
+    fake_post, calls = fake_post_returning("{not json", json.dumps({"weak_spots": []}))
+    monkeypatch.setattr(requests, "post", fake_post)
+
+    with pytest.raises(RuntimeError, match="invalid debrief JSON after one retry"):
+        extract_debrief("I spoke with Priya.")
+
+    assert len(calls) == 2
+    assert "Your previous response was invalid" in calls[1]["json"]["prompt"]
+
+
+def test_extract_debrief_empty_transcript_raises_value_error():
+    with pytest.raises(ValueError, match="Transcript cannot be empty."):
+        extract_debrief(" \n ")
