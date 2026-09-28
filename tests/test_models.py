@@ -89,6 +89,35 @@ def test_person_role_defaults_to_none():
     assert Person(name="Tong").role is None
 
 
+def test_person_role_null_string_becomes_none():
+    extraction = DebriefExtraction.model_validate_json(
+        '{"summary": "Call.", "people_mentioned": [{"name": "Tom", "role": "null"}]}'
+    )
+
+    assert extraction.people_mentioned[0].role is None
+
+
+@pytest.mark.parametrize("value", ["null", "NULL", "None", "none", "", "   "])
+def test_optional_fields_normalize_null_like_strings_to_none(value):
+    item = ActionItem(task="Send notes", owner=value, due=value, evidence=value)
+    decision = MeetingExtraction.model_validate(
+        {"summary": "Sync.", "decisions": [{"text": "Ship it", "evidence": value}]}
+    ).decisions[0]
+
+    assert item.owner is None
+    assert item.due is None
+    assert item.evidence is None
+    assert decision.evidence is None
+    assert Person(name="Tom", role=value).role is None
+
+
+def test_optional_fields_keep_real_values():
+    item = ActionItem(task="Send notes", owner="Me", due="Friday", evidence="[00:35]")
+
+    assert (item.owner, item.due, item.evidence) == ("Me", "Friday", "[00:35]")
+    assert Person(name="Tom", role="Data platform lead").role == "Data platform lead"
+
+
 def test_debrief_extraction_defaults_missing_lists_to_empty():
     extraction = DebriefExtraction.model_validate({"summary": "Short call."})
 

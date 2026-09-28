@@ -1,16 +1,31 @@
-from pydantic import BaseModel
+from typing import Annotated
+
+from pydantic import BaseModel, BeforeValidator
+
+
+NULL_STRINGS = {"null", "none", ""}
+
+
+def _none_if_null(value):
+    """Treat "null", "none", and blank strings from the model as a missing value."""
+    if isinstance(value, str) and value.strip().lower() in NULL_STRINGS:
+        return None
+    return value
+
+
+OptionalText = Annotated[str | None, BeforeValidator(_none_if_null)]
 
 
 class Decision(BaseModel):
     text: str
-    evidence: str | None = None
+    evidence: OptionalText = None
 
 
 class ActionItem(BaseModel):
     task: str
-    owner: str | None = None
-    due: str | None = None
-    evidence: str | None = None
+    owner: OptionalText = None
+    due: OptionalText = None
+    evidence: OptionalText = None
 
 
 class MeetingExtraction(BaseModel):
@@ -25,7 +40,7 @@ class MeetingExtraction(BaseModel):
 
 class Person(BaseModel):
     name: str
-    role: str | None = None
+    role: OptionalText = None
 
 
 class DebriefExtraction(BaseModel):

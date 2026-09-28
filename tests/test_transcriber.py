@@ -192,7 +192,7 @@ def test_transcribe_audio_reports_other_failures_with_the_original_message(
     assert "decode failed" in message
 
 
-def test_create_whisper_model_uses_cpu_and_int8(monkeypatch):
+def test_create_whisper_model_uses_cpu_int8_and_local_files_only(monkeypatch):
     captured = {}
 
     class FakeWhisperModel:
@@ -211,7 +211,25 @@ def test_create_whisper_model_uses_cpu_and_int8(monkeypatch):
         "model_size": "small",
         "device": "cpu",
         "compute_type": "int8",
+        "local_files_only": True,
     }
+
+
+def test_create_whisper_model_missing_model_gives_download_command(monkeypatch):
+    class FakeWhisperModel:
+        def __init__(self, model_size, **kwargs):
+            raise FileNotFoundError("no cached snapshot")
+
+    fake_module = types.ModuleType("faster_whisper")
+    fake_module.WhisperModel = FakeWhisperModel
+    monkeypatch.setitem(sys.modules, "faster_whisper", fake_module)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        transcriber._create_whisper_model("small")
+
+    message = str(exc_info.value)
+    assert "Whisper model 'small' is not downloaded" in message
+    assert "download_model('small')" in message
 
 
 def test_create_whisper_model_missing_dependency_raises_helpful_error(monkeypatch):

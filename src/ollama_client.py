@@ -103,7 +103,7 @@ def _generate(url: str, model: str, prompt: str) -> str:
                 "prompt": prompt,
                 "stream": False,
                 "format": "json",
-                "options": {"num_ctx": NUM_CTX},
+                "options": {"num_ctx": NUM_CTX, "temperature": 0},
             },
             timeout=REQUEST_TIMEOUT_SECONDS,
         )

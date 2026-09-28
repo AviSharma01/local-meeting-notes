@@ -92,4 +92,16 @@ def _create_whisper_model(model_size: str):
             "`pip install faster-whisper`."
         ) from exc
 
-    return WhisperModel(model_size, device="cpu", compute_type="int8")
+    try:
+        return WhisperModel(
+            model_size,
+            device="cpu",
+            compute_type="int8",
+            local_files_only=True,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            f"Whisper model '{model_size}' is not downloaded. Download it once with: "
+            f".venv/bin/python -c \"from faster_whisper import download_model; "
+            f"download_model('{model_size}')\""
+        ) from exc

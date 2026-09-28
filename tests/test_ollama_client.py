@@ -64,7 +64,7 @@ def test_extract_meeting_sends_json_request_to_local_ollama(monkeypatch):
     assert calls[0]["json"]["model"] == DEFAULT_MODEL == "qwen2.5:7b"
     assert calls[0]["json"]["stream"] is False
     assert calls[0]["json"]["format"] == "json"
-    assert calls[0]["json"]["options"] == {"num_ctx": 8192}
+    assert calls[0]["json"]["options"] == {"num_ctx": 8192, "temperature": 0}
     assert NUM_CTX == 8192
     assert calls[0]["timeout"] == REQUEST_TIMEOUT_SECONDS == 300
 
