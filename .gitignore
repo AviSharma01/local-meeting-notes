@@ -31,3 +31,6 @@ audio/
 recordings/
 test_obsidian_meetings/
 tests/fixtures/
+
+# Evaluation cases from real conversations
+evals/private/

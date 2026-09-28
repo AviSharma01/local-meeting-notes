@@ -1,0 +1,21 @@
+[00:00] The brief for Northwind Analytics, October 1st.
+[00:04] This was the first technical round for the data analyst role.
+[00:08] Overall, it went pretty well.
+[00:10] The main focus was SQL and product metrics.
+[00:13] They asked me to write a query for seven-day retention by sign-up cohort.
+[00:18] Then they asked how I'd investigate a sudden drop in daily active users.
+[00:24] They also asked me to walk through a past project,
+[00:27] so I talked about turn modeling.
+[00:29] Where I struggled, the window function part of the retention query.
+[00:34] I mixed up rows and range.
+[00:37] I should practice window functions before the next round.
+[00:41] I also rambled on the DAEU question,
+[00:44] so I wanted a cleaner framework for metric investigations.
+[00:49] I spoke with Priya Raman, spelled R-A-M-A-N,
+[00:56] who's the analytics manager.
+[00:58] She mentioned Tom, who leads the data platform team,
+[01:02] and said I'd likely meet him next round.
+[01:05] I said I'd send her a link to my portfolio by Friday, October 3rd.
+[01:11] She said they'd get back to me within a week about the next round.
+[01:15] Things I still don't know, the salary range,
+[01:18] whether the role is hybrid, and how big the team is.

@@ -1,0 +1,17 @@
+{
+  "mode": "debrief",
+  "commitments": [
+    {"keywords": ["intro", "next week"], "owner": "Jonah"},
+    {"keywords": ["resume"], "owner": "Me"}
+  ],
+  "questions_asked": [
+    {"keywords": ["looking for"]},
+    {"keywords": ["test"]},
+    {"keywords": ["team"]}
+  ],
+  "people_mentioned": [
+    {"keywords": ["jonah"]},
+    {"keywords": ["farah"]},
+    {"keywords": ["kofi"]}
+  ]
+}

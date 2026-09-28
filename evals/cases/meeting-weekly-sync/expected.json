@@ -1,0 +1,12 @@
+{
+  "mode": "meeting",
+  "action_items": [
+    {"keywords": ["dashboard"], "owner": "Ben"},
+    {"keywords": ["reminder"], "owner": "Ines"},
+    {"keywords": ["runbook"]}
+  ],
+  "decisions": [
+    {"keywords": ["events table"]},
+    {"keywords": ["text questions"]}
+  ]
+}

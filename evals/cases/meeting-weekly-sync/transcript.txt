@@ -1,0 +1,11 @@
+[00:00] Rosa: Okay, let's start. Three things today: the dashboard migration, the Q3 survey, and on-call.
+[00:09] Ben: Dashboard migration is about eighty percent done. The last two dashboards depend on the new events table.
+[00:17] Rosa: Let's decide now: we move the remaining two after the events table ships, not before.
+[00:24] Ben: Agreed. I'll migrate them by the 14th.
+[00:29] Rosa: Survey. Response rate is low, around twelve percent.
+[00:35] Ines: I can send a reminder email to the non-responders by Thursday.
+[00:41] Rosa: Good. And we're dropping the optional open-text questions, they're hurting completion.
+[00:48] Ines: Fine by me.
+[00:50] Rosa: Last thing, the on-call runbook is out of date. Someone needs to update it before the next rotation.
+[00:58] Ben: Not me this week, I'm swamped.
+[01:01] Rosa: Okay, we'll leave it open for now. Let's wrap.

@@ -1,0 +1,16 @@
+{
+  "mode": "debrief",
+  "commitments": [
+    {"keywords": ["portfolio"], "owner": "Me"},
+    {"keywords": ["week"], "owner": "Priya"}
+  ],
+  "questions_asked": [
+    {"keywords": ["retention", "cohort"]},
+    {"keywords": ["drop", "active users"]},
+    {"keywords": ["project"]}
+  ],
+  "people_mentioned": [
+    {"keywords": ["priya"]},
+    {"keywords": ["tom"]}
+  ]
+}

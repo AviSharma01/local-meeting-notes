@@ -1,0 +1,13 @@
+{
+  "mode": "meeting",
+  "action_items": [
+    {"keywords": ["help center"], "owner": "Mei"},
+    {"keywords": ["feature flag"], "owner": "Tariq"},
+    {"keywords": ["legal"], "owner": "Mei"}
+  ],
+  "decisions": [
+    {"keywords": ["leaderboard"]},
+    {"keywords": ["22"]},
+    {"keywords": ["reward"]}
+  ]
+}

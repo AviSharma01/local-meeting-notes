@@ -1,0 +1,11 @@
+[00:00] Sam: Quick one. We need to pick a launch date for the referral program.
+[00:06] Tariq: Engineering can be ready by the 20th if we cut the leaderboard.
+[00:12] Mei: Let's cut the leaderboard for launch. We can add it later.
+[00:16] Sam: Agreed, the leaderboard is out for launch.
+[00:20] Sam: And the date: we launch on the 22nd.
+[00:24] Mei: I'll have the help center article drafted by Friday.
+[00:29] Tariq: I'll set up the feature flag tomorrow.
+[00:33] Sam: Do we know if legal needs to review the terms?
+[00:37] Mei: No idea. I'll ask them.
+[00:40] Sam: One more: we're keeping the reward at ten dollars, not fifteen.
+[00:46] Tariq: Makes sense. Done.

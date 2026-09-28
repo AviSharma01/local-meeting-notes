@@ -1,0 +1,17 @@
+{
+  "mode": "debrief",
+  "commitments": [
+    {"keywords": ["home", "tuesday"], "owner": "Megan"},
+    {"keywords": ["references"], "owner": "Me"}
+  ],
+  "questions_asked": [
+    {"keywords": ["resume"]},
+    {"keywords": ["leaving"]},
+    {"keywords": ["tableau"]},
+    {"keywords": ["salary"]}
+  ],
+  "people_mentioned": [
+    {"keywords": ["megan"]},
+    {"keywords": ["luis"]}
+  ]
+}
