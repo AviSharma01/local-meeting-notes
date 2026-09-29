@@ -288,7 +288,7 @@ def test_summarize_command_generates_and_saves_note(
     note_path = tmp_path / f"{SAMPLE_STEM}.md"
 
     assert result.exit_code == 0
-    assert captured["model"] == "qwen2.5:7b"
+    assert captured["model"] == "qwen2.5:14b"
     assert "Alex: Let's start with the launch checklist." in captured["transcript"]
     assert "\n\n" not in captured["transcript"]
     assert "## Summary" in result.output
@@ -300,7 +300,7 @@ def test_summarize_command_generates_and_saves_note(
     assert "type: meeting-note" in saved_note
     assert f"date: {NOTE_DATE}" in saved_note
     assert "source: transcript" in saved_note
-    assert "model: qwen2.5:7b" in saved_note
+    assert "model: qwen2.5:14b" in saved_note
     assert "tags:\n  - meeting-notes" in saved_note
     assert "# Meeting Notes: Sample Meeting" in saved_note
     assert "# Meeting Notes: Sample Meeting\n\n## Summary\n\nLaunch stays on track." in saved_note

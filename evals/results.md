@@ -2,6 +2,10 @@
 
 Each cell is precision / recall, summed over cases. Public rows use only `evals/cases/` and are reproducible from the repo. Private rows use `evals/private/` and never name cases. Retries counts extractions that needed the one JSON retry.
 
+## Notes
+
+- 2026-09-29, qwen2.5:14b row: Default switched to 14b. Commitments recall 0.50 -> 1.00; one extra decision in meeting-weekly-sync (precision 1.00 -> 0.80). Accepted as a model choice, not a prompt revision.
+
 | Date | Commit | Model | Note | Cases | Commitments | Questions | People | Action items | Decisions | Total recall | Retries | Per case |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 2026-09-28 | c1be64a+dirty | qwen2.5:7b | baseline | public (5) | 0.75 / 0.50 | 1.00 / 0.90 | 1.00 / 1.00 | 0.80 / 0.67 | 1.00 / 0.60 | 0.76 | 0/5 | debrief-harborline-recruiter 1.00 / 0.88; debrief-lumen-networking 0.88 / 0.88; debrief-northwind-technical 1.00 / 0.71; meeting-referral-launch 0.75 / 0.50; meeting-weekly-sync 1.00 / 0.80 |
@@ -12,3 +16,4 @@ Each cell is precision / recall, summed over cases. Public rows use only `evals/
 | 2026-09-28 | c1be64a+dirty | qwen2.5:7b | debrief prompt v5 (summary + questions only, [text](prompt-revisions/debrief-v5.md)) | public (5) | 0.60 / 0.50 | 1.00 / 1.00 | 1.00 / 1.00 | 0.80 / 0.67 | 1.00 / 0.60 | 0.79 | 0/5 | debrief-harborline-recruiter 0.88 / 0.88; debrief-lumen-networking 0.88 / 0.88; debrief-northwind-technical 1.00 / 0.86; meeting-referral-launch 0.75 / 0.50; meeting-weekly-sync 1.00 / 0.80 |
 | 2026-09-28 | c1be64a+dirty | qwen2.5:7b | original prompt restored (repeat of baseline) | public (5) | 0.75 / 0.50 | 1.00 / 0.90 | 1.00 / 1.00 | 0.80 / 0.67 | 1.00 / 0.60 | 0.76 | 0/5 | debrief-harborline-recruiter 1.00 / 0.88; debrief-lumen-networking 0.88 / 0.88; debrief-northwind-technical 1.00 / 0.71; meeting-referral-launch 0.75 / 0.50; meeting-weekly-sync 1.00 / 0.80 |
 | 2026-09-29 | c1be64a+dirty | qwen2.5:7b | original prompt, null-string normalization | public (5) | 0.75 / 0.50 | 1.00 / 0.90 | 1.00 / 1.00 | 0.80 / 0.67 | 1.00 / 0.60 | 0.76 | 0/5 | debrief-harborline-recruiter 1.00 / 0.88; debrief-lumen-networking 0.88 / 0.88; debrief-northwind-technical 1.00 / 0.71; meeting-referral-launch 0.75 / 0.50; meeting-weekly-sync 1.00 / 0.80 |
+| 2026-09-29 | baddc4e | qwen2.5:14b | 14b, original prompt | public (5) | 1.00 / 1.00 | 1.00 / 0.90 | 1.00 / 1.00 | 1.00 / 0.83 | 0.83 / 1.00 | 0.94 | 0/5 | debrief-harborline-recruiter 1.00 / 0.88; debrief-lumen-networking 1.00 / 1.00; debrief-northwind-technical 1.00 / 1.00; meeting-referral-launch 1.00 / 1.00; meeting-weekly-sync 0.80 / 0.80 |

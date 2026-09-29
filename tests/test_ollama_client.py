@@ -61,7 +61,7 @@ def test_extract_meeting_sends_json_request_to_local_ollama(monkeypatch):
 
     assert len(calls) == 1
     assert calls[0]["url"] == "http://localhost:11434/api/generate"
-    assert calls[0]["json"]["model"] == DEFAULT_MODEL == "qwen2.5:7b"
+    assert calls[0]["json"]["model"] == DEFAULT_MODEL == "qwen2.5:14b"
     assert calls[0]["json"]["stream"] is False
     assert calls[0]["json"]["format"] == "json"
     assert calls[0]["json"]["options"] == {"num_ctx": 8192, "temperature": 0}

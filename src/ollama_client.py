@@ -9,7 +9,7 @@ from pydantic import BaseModel, ValidationError
 from src.models import DebriefExtraction, MeetingExtraction
 
 
-DEFAULT_MODEL = "qwen2.5:7b"
+DEFAULT_MODEL = "qwen2.5:14b"
 DEFAULT_OLLAMA_HOST = "http://localhost:11434"
 DEFAULT_OLLAMA_PORT = 11434
 LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
