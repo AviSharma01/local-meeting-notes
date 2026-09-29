@@ -15,3 +15,9 @@ Do not paste real transcript text, names, or companies here. This file is tracke
 - Got: what was extracted instead, in general terms
 - Eval case: `evals/cases/<name>` or `evals/private/<name>`
 - Status: open | fixed in <commit>
+
+## 2026-09-29: other-party commitment keeps first-person wording
+- Case: evals/cases/debrief-northwind-technical
+- Got: "Get back to me within a week about the next round." (Owner: Priya Raman)
+- Expected: "Get back to the speaker within a week about the next round."
+- Owner and due date are correct; only the task wording is wrong.
