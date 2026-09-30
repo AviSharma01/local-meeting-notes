@@ -1,6 +1,11 @@
 """Score extraction against the eval cases with a local Ollama model.
 
-Usage: python -m evals.run --model qwen2.5:7b --note "baseline"
+Runs every case in evals/cases/ and evals/private/, prints precision / recall
+per case and per set, and appends one row per set to evals/results.md.
+Ollama must be running locally.
+
+Usage: .venv/bin/python -m evals.run --note "baseline"
+Pass --model to evaluate a model other than the default qwen2.5:14b.
 """
 
 import json

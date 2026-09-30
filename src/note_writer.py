@@ -3,11 +3,11 @@ from datetime import date
 from pathlib import Path
 
 
-UNSAFE_FILENAME_CHARS = r'[/:?*"<>|]'
+UNSAFE_FILENAME_CHARS = r'[/:?*"<>|#^\[\]]'
 
 
 def safe_filename(title: str, extension: str = ".md") -> str:
-    """Convert a meeting title into a safe Markdown filename."""
+    """Convert a note title into a safe Markdown filename."""
     normalized_extension = extension if extension.startswith(".") else f".{extension}"
     safe_title = re.sub(UNSAFE_FILENAME_CHARS, " ", title.strip())
     safe_title = re.sub(r"[\s_-]+", "-", safe_title)

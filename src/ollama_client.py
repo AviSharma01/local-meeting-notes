@@ -10,8 +10,8 @@ from src.models import DebriefExtraction, MeetingExtraction
 
 
 DEFAULT_MODEL = "qwen2.5:14b"
-DEFAULT_OLLAMA_HOST = "http://localhost:11434"
 DEFAULT_OLLAMA_PORT = 11434
+DEFAULT_OLLAMA_HOST = f"http://localhost:{DEFAULT_OLLAMA_PORT}"
 LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
 NUM_CTX = 8192
 RESPONSE_TOKEN_RESERVE = 2048
@@ -31,6 +31,11 @@ def ollama_base_url() -> str:
         host = f"http://{host}"
 
     parsed = urlparse(host)
+    # 0.0.0.0 is a listen address for all interfaces; as a client address it means this machine.
+    if parsed.hostname == "0.0.0.0":
+        parsed = parsed._replace(netloc=parsed.netloc.replace("0.0.0.0", "127.0.0.1", 1))
+        host = parsed.geturl()
+
     if parsed.hostname not in LOOPBACK_HOSTS:
         raise ValueError(
             f"OLLAMA_HOST must point to this machine (localhost, 127.0.0.1, or ::1); got {host}."

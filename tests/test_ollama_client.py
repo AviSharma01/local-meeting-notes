@@ -206,6 +206,9 @@ def test_extract_meeting_uses_ollama_host_from_environment(monkeypatch):
         ("[::1]:11434", "http://[::1]:11434"),
         ("http://localhost:11434/", "http://localhost:11434"),
         ("", "http://localhost:11434"),
+        ("0.0.0.0:11434", "http://127.0.0.1:11434"),
+        ("0.0.0.0", "http://127.0.0.1:11434"),
+        ("http://0.0.0.0:8080/", "http://127.0.0.1:8080"),
     ],
 )
 def test_ollama_base_url_accepts_loopback_hosts(monkeypatch, host, expected):
@@ -235,7 +238,6 @@ def test_ollama_base_url_defaults_port_to_11434(monkeypatch, host, expected):
     [
         "http://example.com:11434",
         "192.168.1.20:11434",
-        "0.0.0.0:11434",
         "http://localhost.example.com",
         "http://127.0.0.1@example.com",
     ],

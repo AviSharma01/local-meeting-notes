@@ -13,6 +13,10 @@ def test_safe_filename_removes_unsafe_characters():
     assert safe_filename(title) == "sprint-planning-qa-beta-launch-notes.md"
 
 
+def test_safe_filename_removes_obsidian_link_characters():
+    assert safe_filename("Q3 #launch ^v2 [Draft]") == "q3-launch-v2-draft.md"
+
+
 def test_safe_filename_handles_empty_titles():
     assert safe_filename("") == "meeting-notes.md"
     assert safe_filename("   ") == "meeting-notes.md"

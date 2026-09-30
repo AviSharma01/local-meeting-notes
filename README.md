@@ -27,20 +27,20 @@ Two models are downloaded once. After that, normal runs never go online.
    ollama pull qwen2.5:14b
    ```
 
-2. The whisper model. `small` is recommended for debriefs:
+2. The whisper model. `small` is the default:
 
    ```bash
    .venv/bin/python -c "from faster_whisper import download_model; download_model('small')"
    ```
 
-   The default whisper model is `base`. If you use it, or `tiny` or `medium`, download it the same way with its name in place of `small`. If a model is missing, the error message prints this command for you.
+   To use `tiny`, `base`, or `medium` instead, download it the same way with its name in place of `small` and pass `--whisper-model`. If a model is missing, the error message prints this command for you.
 
 ## Try it without a recording
 
 This command summarizes a sample debrief transcript that ships with the repo. It writes to `output/`, which git ignores:
 
 ```bash
-.venv/bin/python main.py summarize evals/cases/debrief-northwind-technical/transcript.txt --mode debrief --company "Northwind Analytics" --date 2026-10-01 --out output/
+.venv/bin/python main.py summarize evals/cases/debrief-northwind-technical/transcript.txt --company "Northwind Analytics" --date 2026-10-01 --out output/
 ```
 
 The note is written to `output/2026-10-01-northwind-analytics-debrief.md`. Its commitments are appended to `output/Action Items.md`.
@@ -60,7 +60,7 @@ In Voice Memos, tap the recording, then Share, then AirDrop to your Mac. The fil
 Replace `~/Downloads/memo.m4a` with your recording and `~/Obsidian/Debriefs` with a folder in your vault:
 
 ```bash
-.venv/bin/python main.py summarize ~/Downloads/memo.m4a --mode debrief --company "Northwind Analytics" --whisper-model small --out ~/Obsidian/Debriefs --link-related
+.venv/bin/python main.py summarize ~/Downloads/memo.m4a --company "Northwind Analytics" --out ~/Obsidian/Debriefs --link-related
 ```
 
 This one command:
@@ -117,10 +117,10 @@ The speaker had their first technical interview for the data analyst position at
 
 ## Meetings
 
-Meeting mode is the default. It extracts a summary, decisions, action items, follow-ups, risks, open questions, and items that need review. `--title` is required:
+Pass `--mode meeting` for meeting notes. Meeting mode extracts a summary, decisions, action items, follow-ups, risks, open questions, and items that need review. `--title` is required:
 
 ```bash
-.venv/bin/python main.py summarize ~/Downloads/meeting.m4a --title "Sprint Planning" --out ~/Obsidian/Meetings --link-related
+.venv/bin/python main.py summarize ~/Downloads/meeting.m4a --mode meeting --title "Sprint Planning" --out ~/Obsidian/Meetings --link-related
 ```
 
 ## Dated notes and `--force`
@@ -128,16 +128,18 @@ Meeting mode is the default. It extracts a summary, decisions, action items, fol
 Notes are named `YYYY-MM-DD-<slug>.md` and dated today. Pass `--date` to date a memo you recorded earlier:
 
 ```bash
-.venv/bin/python main.py summarize ~/Downloads/memo.m4a --mode debrief --company "Northwind Analytics" --whisper-model small --out ~/Obsidian/Debriefs --date 2026-10-01
+.venv/bin/python main.py summarize ~/Downloads/memo.m4a --company "Northwind Analytics" --out ~/Obsidian/Debriefs --date 2026-10-01
 ```
 
 Running the same command again refuses to overwrite the existing note. Add `--force` to rewrite it:
 
 ```bash
-.venv/bin/python main.py summarize ~/Downloads/memo.m4a --mode debrief --company "Northwind Analytics" --whisper-model small --out ~/Obsidian/Debriefs --date 2026-10-01 --force
+.venv/bin/python main.py summarize ~/Downloads/memo.m4a --company "Northwind Analytics" --out ~/Obsidian/Debriefs --date 2026-10-01 --force
 ```
 
 `--force` never changes that note's section in `Action Items.md`, so boxes you have checked stay checked.
+
+To keep both notes instead, for example after two calls with the same company on the same day, pass a different `--title` for the second one.
 
 ## Transcripts on their own
 
@@ -158,7 +160,7 @@ Preview the transcript:
 Then summarize it:
 
 ```bash
-.venv/bin/python main.py summarize transcripts/memo.txt --mode debrief --company "Northwind Analytics" --title "Northwind technical round" --out ~/Obsidian/Debriefs
+.venv/bin/python main.py summarize transcripts/memo.txt --company "Northwind Analytics" --title "Northwind technical round" --out ~/Obsidian/Debriefs
 ```
 
 ## Eval scores
@@ -181,7 +183,7 @@ No case needed the JSON retry (0/5). With 5 cases, one missed item moves a score
 ## Limitations
 
 * **Short inputs only.** The prompt and transcript must fit in an 8,192-token context, with 2,048 tokens kept for the response.
-* **No chunking.** A transcript that is too long fails with a clear error. It is never truncated or split.
+* **No chunking.** A transcript that is too long fails with a clear error instead of being split. The length check estimates about four characters per token, so a transcript close to the limit could still be truncated by Ollama.
 * **No diarization.** Transcripts don't mark who said what. This matters little for a solo debrief but a lot for recorded meetings.
 * **Small eval set.** There are 5 mostly synthetic cases. Scores on your own recordings may differ.
 * **Summaries aren't scored and are written in the third person** ("The speaker had..."). Only the list fields above are evaluated.
@@ -190,7 +192,7 @@ No case needed the JSON retry (0/5). With 5 cases, one missed item moves a score
 
 ## What stays local
 
-Audio, transcripts, notes, and related-note matching stay on your machine. Apart from the one-time model downloads, the only endpoint the tool talks to is Ollama on localhost. `OLLAMA_HOST` is rejected unless it points to `localhost`, `127.0.0.1`, or `::1`.
+Audio, transcripts, notes, and related-note matching stay on your machine. Apart from the one-time model downloads, the only endpoint the tool talks to is Ollama on localhost. `OLLAMA_HOST` is rejected unless it points to `localhost`, `127.0.0.1`, or `::1`. `0.0.0.0` is treated as `127.0.0.1`.
 
 Related-note linking reads only Markdown files directly inside `--out`. It skips `Action Items.md`, never recurses or follows symlinks, and never scans the rest of your vault.
 

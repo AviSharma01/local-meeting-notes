@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from src.related_notes import (
     MeetingNote,
     RelatedNoteMatch,
@@ -15,18 +13,13 @@ def make_note(
     filename,
     content="",
     tags=None,
-    summary="",
-    date=None,
     company=None,
 ):
     return MeetingNote(
         title=title,
         filename=filename,
-        path=Path(filename),
         content=content,
         tags=tags or [],
-        summary=summary,
-        date=date,
         company=company,
     )
 
@@ -51,11 +44,8 @@ def test_load_meeting_notes_loads_direct_markdown_notes(tmp_path):
         MeetingNote(
             title="Meeting Notes: Sprint Planning",
             filename="sprint-planning.md",
-            path=note_path,
             content=content,
             tags=[],
-            summary="Discussed sprint scope.",
-            date=None,
         )
     ]
 
@@ -175,75 +165,6 @@ def test_load_meeting_notes_returns_empty_tags_when_missing(tmp_path):
     assert notes[0].tags == []
 
 
-def test_load_meeting_notes_extracts_date_from_frontmatter(tmp_path):
-    (tmp_path / "meeting.md").write_text(
-        """---
-date: 2026-06-07
----
-
-# Meeting
-""",
-        encoding="utf-8",
-    )
-
-    notes = load_meeting_notes(tmp_path)
-
-    assert notes[0].date == "2026-06-07"
-
-
-def test_load_meeting_notes_returns_none_when_date_missing(tmp_path):
-    (tmp_path / "meeting.md").write_text("# Meeting", encoding="utf-8")
-
-    notes = load_meeting_notes(tmp_path)
-
-    assert notes[0].date is None
-
-
-def test_load_meeting_notes_extracts_summary_text(tmp_path):
-    (tmp_path / "meeting.md").write_text(
-        """# Meeting
-
-## Summary
-
-Discussed launch scope.
-Confirmed beta timeline.
-""",
-        encoding="utf-8",
-    )
-
-    notes = load_meeting_notes(tmp_path)
-
-    assert notes[0].summary == "Discussed launch scope.\nConfirmed beta timeline."
-
-
-def test_load_meeting_notes_stops_summary_at_next_heading(tmp_path):
-    (tmp_path / "meeting.md").write_text(
-        """# Meeting
-
-## Summary
-
-Discussed launch scope.
-
-## Action Items
-
-- [ ] Send notes — Owner: Avi — Due: Friday
-""",
-        encoding="utf-8",
-    )
-
-    notes = load_meeting_notes(tmp_path)
-
-    assert notes[0].summary == "Discussed launch scope."
-
-
-def test_load_meeting_notes_returns_empty_summary_when_missing(tmp_path):
-    (tmp_path / "meeting.md").write_text("# Meeting\n\n## Notes", encoding="utf-8")
-
-    notes = load_meeting_notes(tmp_path)
-
-    assert notes[0].summary == ""
-
-
 def test_find_related_notes_returns_empty_list_with_no_candidates():
     assert find_related_notes("Sprint Planning", "Discussed beta launch.", []) == []
 
@@ -255,7 +176,6 @@ def test_find_related_notes_returns_empty_list_when_no_signals_match():
             "budget.md",
             content="Discussed finance forecasts.",
             tags=["finance"],
-            summary="Reviewed budget.",
         )
     ]
 
@@ -728,12 +648,6 @@ def test_format_wiki_link_uses_filename_stem():
     note = make_note("Sprint Planning", "sprint-planning.md")
 
     assert format_wiki_link(note) == "[[sprint-planning]]"
-
-
-def test_format_wiki_link_excludes_markdown_extension():
-    note = make_note("Sprint Planning", "sprint-planning.md")
-
-    assert ".md" not in format_wiki_link(note)
 
 
 def test_format_related_meetings_section_returns_empty_string_for_no_matches():

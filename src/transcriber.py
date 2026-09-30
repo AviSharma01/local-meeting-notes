@@ -5,6 +5,7 @@ from src.note_writer import safe_filename
 
 
 AUDIO_EXTENSIONS = {".m4a", ".mp3", ".wav", ".aac", ".flac"}
+DEFAULT_WHISPER_MODEL = "small"
 
 
 @dataclass(frozen=True)
@@ -62,7 +63,7 @@ def write_transcript(
 
 def transcribe_audio(
     audio_path: str | Path,
-    model_size: str = "base",
+    model_size: str = DEFAULT_WHISPER_MODEL,
 ) -> list[TranscriptSegment]:
     """Transcribe a local audio file with faster-whisper."""
     if not Path(audio_path).exists():

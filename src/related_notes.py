@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 
+from src.action_items import ACTION_ITEMS_FILENAME
+
 
 STOP_WORDS = {
     "the",
@@ -93,25 +95,14 @@ KEYWORD_SECTIONS = {
     "People Mentioned",
     "Commitments",
 }
-NOISY_KEYWORD_SECTIONS = {
-    "Meeting Health",
-    "Needs Review",
-    "Related Meetings",
-    "Follow-ups",
-    "Risks / Blockers",
-    "Open Questions",
-}
 
 
 @dataclass(frozen=True)
 class MeetingNote:
     title: str
     filename: str
-    path: Path
     content: str
     tags: list[str]
-    summary: str
-    date: str | None
     company: str | None = None
 
 
@@ -123,7 +114,7 @@ class RelatedNoteMatch:
 
 
 def load_meeting_notes(folder_path: str | Path) -> list[MeetingNote]:
-    """Load direct Markdown meeting notes from an explicitly selected folder."""
+    """Load Markdown notes directly inside an explicitly selected folder."""
     folder = Path(folder_path)
     if not folder.exists() or not folder.is_dir():
         return []
@@ -134,7 +125,7 @@ def load_meeting_notes(folder_path: str | Path) -> list[MeetingNote]:
             continue
         if not path.is_file():
             continue
-        if path.name == "Action Items.md":
+        if path.name == ACTION_ITEMS_FILENAME:
             continue
         if path.suffix.lower() != ".md":
             continue
@@ -145,11 +136,8 @@ def load_meeting_notes(folder_path: str | Path) -> list[MeetingNote]:
             MeetingNote(
                 title=_extract_title(content, path),
                 filename=path.name,
-                path=path,
                 content=content,
                 tags=_extract_tags(frontmatter_lines),
-                summary=_extract_summary(content),
-                date=_extract_date(frontmatter_lines),
                 company=_frontmatter_value(frontmatter_lines, "company"),
             )
         )
@@ -231,7 +219,7 @@ def find_related_notes(
 
 
 def format_wiki_link(note: MeetingNote) -> str:
-    """Format a meeting note as an Obsidian wiki-link."""
+    """Format a note as an Obsidian wiki-link."""
     return f"[[{Path(note.filename).stem}]]"
 
 
@@ -303,16 +291,6 @@ def _extract_tags(frontmatter_lines: list[str]) -> list[str]:
     return tags
 
 
-def _extract_date(frontmatter_lines: list[str]) -> str | None:
-    for line in frontmatter_lines:
-        stripped_line = line.strip()
-        if stripped_line.startswith("date:"):
-            date = _clean_yaml_value(stripped_line.removeprefix("date:").strip())
-            return date or None
-
-    return None
-
-
 def _frontmatter_value(frontmatter_lines: list[str], key: str) -> str | None:
     for line in frontmatter_lines:
         stripped_line = line.strip()
@@ -335,24 +313,6 @@ def _same_company(current_company: str | None, candidate_company: str | None) ->
     )
 
 
-def _extract_summary(content: str) -> str:
-    summary_lines = []
-    in_summary = False
-
-    for line in content.splitlines():
-        if line.strip() == "## Summary":
-            in_summary = True
-            continue
-
-        if in_summary and line.startswith("## "):
-            break
-
-        if in_summary:
-            summary_lines.append(line)
-
-    return "\n".join(summary_lines).strip()
-
-
 def _extract_keyword_text(content: str) -> str:
     keyword_lines = []
     current_section = None
@@ -366,8 +326,6 @@ def _extract_keyword_text(content: str) -> str:
 
         if current_section in KEYWORD_SECTIONS:
             keyword_lines.append(line)
-        elif current_section in NOISY_KEYWORD_SECTIONS:
-            continue
 
     keyword_text = "\n".join(keyword_lines).strip()
     if keyword_text:

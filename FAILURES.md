@@ -17,7 +17,11 @@ Do not paste real transcript text, names, or companies here. This file is tracke
 - Status: open | fixed in <commit>
 
 ## 2026-09-29: other-party commitment keeps first-person wording
-- Case: evals/cases/debrief-northwind-technical
-- Got: "Get back to me within a week about the next round." (Owner: Priya Raman)
-- Expected: "Get back to the speaker within a week about the next round."
-- Owner and due date are correct; only the task wording is wrong.
+
+- Mode: debrief
+- Model: qwen2.5:14b
+- Field: commitments
+- Expected: a commitment owned by the other party is worded from the speaker's point of view ("Get back to the speaker within a week about the next round.")
+- Got: the task keeps the other party's first-person wording ("Get back to me within a week about the next round."); owner and due date are correct
+- Eval case: `evals/cases/debrief-northwind-technical`
+- Status: open

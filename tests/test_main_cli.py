@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 import main
 from src.models import ActionItem, DebriefExtraction, MeetingExtraction, Person
 from src.note_writer import note_stem, safe_filename
+from src.related_notes import load_meeting_notes
 from src.transcriber import TranscriptSegment
 
 
@@ -106,6 +107,8 @@ def test_summarize_command_reports_a_missing_audio_file(monkeypatch, tmp_path):
         [
             "summarize",
             str(tmp_path / "missing.m4a"),
+            "--mode",
+            "meeting",
             "--title",
             "Sample Meeting",
             "--out",
@@ -127,6 +130,8 @@ def test_summarize_command_reports_a_missing_transcript_file(monkeypatch, tmp_pa
         [
             "summarize",
             str(tmp_path / "missing.txt"),
+            "--mode",
+            "meeting",
             "--title",
             "Sample Meeting",
             "--out",
@@ -154,6 +159,8 @@ def test_summarize_command_reports_an_ollama_failure(
         [
             "summarize",
             str(sample_transcript),
+            "--mode",
+            "meeting",
             "--title",
             "Sample Meeting",
             "--out",
@@ -180,6 +187,8 @@ def test_summarize_command_reports_an_over_length_transcript(tmp_path):
         [
             "summarize",
             str(long_transcript),
+            "--mode",
+            "meeting",
             "--title",
             "Sample Meeting",
             "--out",
@@ -212,10 +221,8 @@ def test_transcribe_command_help_is_available():
     assert "--out" in squash(result.output)
     assert "--model" in squash(result.output)
     assert "<tiny|base|small|medium>" in squash(result.output)
-    assert squash("[default: base]") in squash(result.output)
-    assert squash("base is faster") in squash(result.output)
-    assert squash("for testing") in squash(result.output)
-    assert squash("small may improve quality") in squash(result.output)
+    assert squash("[default: small]") in squash(result.output)
+    assert squash("small is the default") in squash(result.output)
 
 
 def test_transcribe_command_rejects_unknown_model(tmp_path):
@@ -254,7 +261,7 @@ def test_transcribe_command_writes_mocked_transcript(monkeypatch, tmp_path):
     transcript_path = tmp_path / "meeting.txt"
 
     assert result.exit_code == 0
-    assert captured["model_size"] == "base"
+    assert captured["model_size"] == "small"
     assert transcript_path.exists()
     assert transcript_path.read_text(encoding="utf-8") == (
         "[00:00] First transcribed segment.\n"
@@ -281,12 +288,12 @@ def test_transcribe_command_passes_selected_model(monkeypatch, tmp_path):
             "--out",
             str(tmp_path),
             "--model",
-            "small",
+            "medium",
         ],
     )
 
     assert result.exit_code == 0
-    assert captured["model_size"] == "small"
+    assert captured["model_size"] == "medium"
     assert (tmp_path / "meeting.txt").exists()
 
 
@@ -307,6 +314,8 @@ def test_summarize_command_generates_and_saves_note(
         [
             "summarize",
             str(sample_transcript),
+            "--mode",
+            "meeting",
             "--title",
             "Sample Meeting",
             "--out",
@@ -331,7 +340,7 @@ def test_summarize_command_generates_and_saves_note(
     assert "type: meeting-note" in saved_note
     assert f"date: {NOTE_DATE}" in saved_note
     assert "source: transcript" in saved_note
-    assert "model: qwen2.5:14b" in saved_note
+    assert 'model: "qwen2.5:14b"' in saved_note
     assert "tags:\n  - meeting-notes" in saved_note
     assert "# Meeting Notes: Sample Meeting" in saved_note
     assert "# Meeting Notes: Sample Meeting\n\n## Summary\n\nLaunch stays on track." in saved_note
@@ -355,6 +364,8 @@ def test_summarize_command_defaults_date_to_today(
         [
             "summarize",
             str(sample_transcript),
+            "--mode",
+            "meeting",
             "--title",
             "Sample Meeting",
             "--out",
@@ -380,6 +391,8 @@ def test_summarize_command_rejects_invalid_date(
         [
             "summarize",
             str(sample_transcript),
+            "--mode",
+            "meeting",
             "--title",
             "Sample Meeting",
             "--out",
@@ -420,6 +433,8 @@ def test_summarize_command_transcribes_audio_input(
         [
             "summarize",
             str(sample_audio),
+            "--mode",
+            "meeting",
             "--title",
             "Sample Meeting",
             "--out",
@@ -434,7 +449,7 @@ def test_summarize_command_transcribes_audio_input(
 
     assert result.exit_code == 0
     assert captured["audio_path"] == str(sample_audio)
-    assert captured["model_size"] == "base"
+    assert captured["model_size"] == "small"
     assert transcript_path.read_text(encoding="utf-8") == (
         "[00:00] Alex: Let's start with the launch checklist.\n"
         "[00:18] Sam: I can own the QA pass by Friday."
@@ -469,17 +484,19 @@ def test_summarize_command_passes_selected_whisper_model(
         [
             "summarize",
             str(sample_audio),
+            "--mode",
+            "meeting",
             "--title",
             "Sample Meeting",
             "--out",
             str(tmp_path),
             "--whisper-model",
-            "small",
+            "medium",
         ],
     )
 
     assert result.exit_code == 0
-    assert captured["model_size"] == "small"
+    assert captured["model_size"] == "medium"
 
 
 def test_summarize_command_refuses_to_overwrite_existing_note(
@@ -500,6 +517,8 @@ def test_summarize_command_refuses_to_overwrite_existing_note(
         [
             "summarize",
             str(sample_audio),
+            "--mode",
+            "meeting",
             "--title",
             "Sample Meeting",
             "--out",
@@ -523,6 +542,8 @@ def test_summarize_command_refuses_to_overwrite_existing_note(
         [
             "summarize",
             str(sample_audio),
+            "--mode",
+            "meeting",
             "--title",
             "Sample Meeting",
             "--out",
@@ -534,8 +555,10 @@ def test_summarize_command_refuses_to_overwrite_existing_note(
 
     assert_reported_without_traceback(second_run, "Note already exists:")
     assert squash(
-        f"Note already exists: {note_path}. Pass --force to overwrite it."
+        f"Note already exists: {note_path}. "
+        "Pass --title to save this note under a different name."
     ) in squash(second_run.output)
+    assert "--force" not in squash(second_run.output)
     assert note_path.read_text(encoding="utf-8") == note_before
     assert action_items_path.read_text(encoding="utf-8") == action_items_before
 
@@ -551,6 +574,8 @@ def test_summarize_command_force_rewrites_note_and_keeps_action_items(
     args = [
         "summarize",
         str(sample_transcript),
+        "--mode",
+        "meeting",
         "--title",
         "Sample Meeting",
         "--out",
@@ -597,6 +622,8 @@ def test_summarize_command_separates_same_title_on_different_dates(
             [
                 "summarize",
                 str(sample_transcript),
+                "--mode",
+                "meeting",
                 "--title",
                 "Sample Meeting",
                 "--out",
@@ -635,6 +662,8 @@ def test_summarize_command_does_not_link_a_note_to_itself_on_force_rerun(
     args = [
         "summarize",
         str(sample_transcript),
+        "--mode",
+        "meeting",
         "--title",
         "Sample Meeting",
         "--out",
@@ -671,6 +700,8 @@ def test_summarize_command_passes_selected_model(
         [
             "summarize",
             str(sample_transcript),
+            "--mode",
+            "meeting",
             "--title",
             "Sample Meeting",
             "--out",
@@ -685,7 +716,7 @@ def test_summarize_command_passes_selected_model(
     assert result.exit_code == 0
     assert captured["model"] == "test-model"
     saved_note = (tmp_path / f"{SAMPLE_STEM}.md").read_text(encoding="utf-8")
-    assert "model: test-model" in saved_note
+    assert 'model: "test-model"' in saved_note
 
 
 def test_summarize_command_uses_out_as_output_folder(
@@ -703,6 +734,8 @@ def test_summarize_command_uses_out_as_output_folder(
         [
             "summarize",
             str(sample_transcript),
+            "--mode",
+            "meeting",
             "--title",
             "Nested Meeting",
             "--out",
@@ -730,6 +763,8 @@ def test_summarize_command_appends_action_items(
         [
             "summarize",
             str(sample_transcript),
+            "--mode",
+            "meeting",
             "--title",
             "Sample Meeting",
             "--out",
@@ -778,6 +813,8 @@ def test_summarize_command_prints_bracketed_text_unchanged(
         [
             "summarize",
             str(sample_transcript),
+            "--mode",
+            "meeting",
             "--title",
             title,
             "--out",
@@ -815,6 +852,8 @@ def test_summarize_command_does_not_create_action_items_when_none_found(
         [
             "summarize",
             str(sample_transcript),
+            "--mode",
+            "meeting",
             "--title",
             "Sample Meeting",
             "--out",
@@ -848,6 +887,8 @@ def test_summarize_command_does_not_load_related_notes_without_flag(
         [
             "summarize",
             str(sample_transcript),
+            "--mode",
+            "meeting",
             "--title",
             "Sample Meeting",
             "--out",
@@ -891,6 +932,8 @@ Discussed launch QA.
         [
             "summarize",
             str(sample_transcript),
+            "--mode",
+            "meeting",
             "--title",
             "Sample Meeting",
             "--out",
@@ -930,6 +973,8 @@ def test_summarize_command_link_related_with_no_matches_adds_no_empty_section(
         [
             "summarize",
             str(sample_transcript),
+            "--mode",
+            "meeting",
             "--title",
             "Sample Meeting",
             "--out",
@@ -967,6 +1012,8 @@ def test_summarize_command_appends_action_items_when_related_meetings_are_added(
         [
             "summarize",
             str(sample_transcript),
+            "--mode",
+            "meeting",
             "--title",
             "Sample Meeting",
             "--out",
@@ -1033,7 +1080,7 @@ def test_summarize_debrief_writes_note_with_six_sections_and_company(
     saved_note = (tmp_path / f"{DEBRIEF_STEM}.md").read_text(encoding="utf-8")
     assert saved_note.startswith("---\ntype: debrief\n")
     assert f"date: {NOTE_DATE}" in saved_note
-    assert "company: Northwind\n" in saved_note
+    assert 'company: "Northwind"\n' in saved_note
     assert "tags:\n  - debrief" in saved_note
     assert "# Debrief: Northwind debrief\n\n## Summary" in saved_note
     for heading in [
@@ -1059,7 +1106,7 @@ def test_summarize_debrief_uses_explicit_title(monkeypatch, tmp_path, sample_tra
     assert result.exit_code == 0, result.output
     saved_note = (tmp_path / f"{NOTE_DATE}-round-one.md").read_text(encoding="utf-8")
     assert "# Debrief: Round One" in saved_note
-    assert "company: Northwind" in saved_note
+    assert 'company: "Northwind"' in saved_note
 
 
 def test_summarize_debrief_without_company_fails_clearly(
@@ -1070,7 +1117,9 @@ def test_summarize_debrief_without_company_fails_clearly(
     result = run_debrief(tmp_path, sample_transcript, "--title", "Round One")
 
     assert result.exit_code == 1
-    assert squash("--company is required with --mode debrief.") in squash(result.output)
+    assert squash(
+        "--company is required for a debrief. Pass --mode meeting for meeting notes."
+    ) in squash(result.output)
     assert list(tmp_path.glob("*.md")) == []
 
 
@@ -1080,7 +1129,8 @@ def test_summarize_meeting_without_title_fails_clearly(
     monkeypatch.setattr(main, "extract_meeting", fail_if_called)
 
     result = runner.invoke(
-        main.app, ["summarize", str(sample_transcript), "--out", str(tmp_path)]
+        main.app,
+        ["summarize", str(sample_transcript), "--mode", "meeting", "--out", str(tmp_path)],
     )
 
     assert result.exit_code == 1
@@ -1096,6 +1146,8 @@ def test_summarize_meeting_rejects_company(monkeypatch, tmp_path, sample_transcr
         [
             "summarize",
             str(sample_transcript),
+            "--mode",
+            "meeting",
             "--title",
             "Sample Meeting",
             "--company",
@@ -1130,3 +1182,40 @@ def test_summarize_debrief_appends_commitments_once_after_rerun(
     assert "- [ ] Get back about the next round — Owner: Priya Raman — Due: within a week" in action_items
     assert f"  - Source: [[{DEBRIEF_STEM}]]" in action_items
     assert squash(f"Action items for [[{DEBRIEF_STEM}]] already exist") in squash(second.output)
+
+
+def test_summarize_defaults_to_debrief_mode_and_small_whisper_model(
+    monkeypatch, tmp_path, sample_audio
+):
+    captured = {}
+
+    def fake_transcribe_audio(audio_path, model_size):
+        captured["model_size"] = model_size
+        return [TranscriptSegment(0, "I spoke with Priya Raman.")]
+
+    monkeypatch.setattr(main, "transcribe_audio", fake_transcribe_audio)
+    monkeypatch.setattr(main, "extract_meeting", fail_if_called)
+    monkeypatch.setattr(main, "extract_debrief", lambda transcript, model: make_debrief())
+
+    result = runner.invoke(
+        main.app,
+        ["summarize", str(sample_audio), "--company", "Northwind", "--out", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["model_size"] == "small"
+    note_path = tmp_path / f"{note_stem(date.today(), 'Northwind debrief')}.md"
+    assert note_path.read_text(encoding="utf-8").startswith("---\ntype: debrief\n")
+
+
+def test_summarize_debrief_quotes_company_with_a_colon(
+    monkeypatch, tmp_path, sample_transcript
+):
+    monkeypatch.setattr(main, "extract_debrief", lambda transcript, model: make_debrief())
+
+    result = run_debrief(tmp_path, sample_transcript, "--company", "Foo: Bar")
+
+    assert result.exit_code == 0, result.output
+    saved_note = (tmp_path / f"{NOTE_DATE}-foo-bar-debrief.md").read_text(encoding="utf-8")
+    assert '\ncompany: "Foo: Bar"\n' in saved_note
+    assert [note.company for note in load_meeting_notes(tmp_path)] == ["Foo: Bar"]

@@ -119,7 +119,7 @@ def test_transcribe_audio_converts_faster_whisper_segments(monkeypatch, audio_fi
 
     segments = transcribe_audio(audio_file)
 
-    assert captured == {"model_size": "base", "audio_path": str(audio_file)}
+    assert captured == {"model_size": "small", "audio_path": str(audio_file)}
     assert segments == [
         TranscriptSegment(start_seconds=0.0, text="First transcribed segment."),
         TranscriptSegment(start_seconds=18.5, text="Second transcribed segment."),
@@ -158,8 +158,8 @@ def test_transcribe_audio_uses_selected_model_size(monkeypatch, audio_file):
 
     monkeypatch.setattr(transcriber, "_create_whisper_model", fake_create_whisper_model)
 
-    assert transcribe_audio(audio_file, model_size="small") == []
-    assert captured["model_size"] == "small"
+    assert transcribe_audio(audio_file, model_size="medium") == []
+    assert captured["model_size"] == "medium"
 
 
 def test_transcribe_audio_missing_file_is_reported_before_loading_a_model(monkeypatch):

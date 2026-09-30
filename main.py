@@ -1,4 +1,5 @@
 import functools
+import json
 from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
@@ -21,19 +22,20 @@ from src.transcript_cleaner import clean_transcript
 from src.transcripts import read_transcript
 from src.transcriber import (
     AUDIO_EXTENSIONS,
+    DEFAULT_WHISPER_MODEL,
     format_transcript,
     transcribe_audio,
     write_transcript,
 )
 
 
-app = typer.Typer(help="Local-first meeting notes CLI.")
+app = typer.Typer(help="Local-first CLI that turns voice-memo debriefs and meetings into Obsidian notes.")
 # Markup is off so transcript and model text such as "[laughs]" prints unchanged.
 console = Console(markup=False)
 
 WHISPER_MODEL_HELP = (
     "Local faster-whisper model to use. "
-    "base is faster for testing; small may improve quality but is slower."
+    "small is the default; tiny and base are faster but less accurate."
 )
 
 
@@ -63,6 +65,11 @@ def report_errors(command):
     return wrapper
 
 
+def yaml_string(value: str) -> str:
+    """Quote a frontmatter value; a JSON string is also a valid YAML string."""
+    return json.dumps(value, ensure_ascii=False)
+
+
 def format_meeting_note(
     title: str,
     model: str,
@@ -70,14 +77,14 @@ def format_meeting_note(
     note_date: date,
     source: str,
 ) -> str:
-    """Wrap generated notes with Phase 1 Obsidian-friendly metadata."""
+    """Wrap rendered meeting notes with Obsidian-friendly metadata."""
     cleaned_notes = generated_notes.strip()
     return (
         "---\n"
         "type: meeting-note\n"
         f"date: {note_date.isoformat()}\n"
         f"source: {source}\n"
-        f"model: {model}\n"
+        f"model: {yaml_string(model)}\n"
         "tags:\n"
         "  - meeting-notes\n"
         "---\n\n"
@@ -100,9 +107,9 @@ def format_debrief_note(
         "---\n"
         "type: debrief\n"
         f"date: {note_date.isoformat()}\n"
-        f"company: {company}\n"
+        f"company: {yaml_string(company)}\n"
         f"source: {source}\n"
-        f"model: {model}\n"
+        f"model: {yaml_string(model)}\n"
         "tags:\n"
         "  - debrief\n"
         "---\n\n"
@@ -113,7 +120,7 @@ def format_debrief_note(
 
 @app.callback()
 def main() -> None:
-    """Local-first meeting notes CLI."""
+    """Local-first CLI that turns voice-memo debriefs and meetings into Obsidian notes."""
 
 
 @app.command()
@@ -137,7 +144,7 @@ def transcribe(
     audio_path: Path,
     out: Path = typer.Option(..., "--out", help="Output folder for the transcript."),
     model: WhisperModelSize = typer.Option(
-        WhisperModelSize.base,
+        WhisperModelSize(DEFAULT_WHISPER_MODEL),
         "--model",
         help=WHISPER_MODEL_HELP,
     ),
@@ -156,11 +163,11 @@ def summarize(
     title: str | None = typer.Option(
         None,
         "--title",
-        help="Title for the saved note. Required in meeting mode; "
-        "defaults to '<Company> debrief' in debrief mode.",
+        help="Title for the saved note. Defaults to '<Company> debrief'; "
+        "required with --mode meeting.",
     ),
     out: Path = typer.Option(..., "--out", help="Output folder for the Markdown note."),
-    mode: Mode = typer.Option(Mode.meeting, "--mode", help="Kind of note to write."),
+    mode: Mode = typer.Option(Mode.debrief, "--mode", help="Kind of note to write."),
     company: str | None = typer.Option(
         None,
         "--company",
@@ -174,7 +181,7 @@ def summarize(
         help="Note date in YYYY-MM-DD form. Defaults to today.",
     ),
     whisper_model: WhisperModelSize = typer.Option(
-        WhisperModelSize.base,
+        WhisperModelSize(DEFAULT_WHISPER_MODEL),
         "--whisper-model",
         help=f"{WHISPER_MODEL_HELP} Used only for audio input.",
     ),
@@ -186,13 +193,15 @@ def summarize(
     link_related: bool = typer.Option(
         False,
         "--link-related",
-        help="Link related meeting notes from the output folder.",
+        help="Link related notes from the output folder.",
     ),
 ) -> None:
-    """Generate and save Markdown meeting notes from a transcript or audio file."""
+    """Summarize a voice memo or transcript into a Markdown debrief or meeting note."""
     if mode is Mode.debrief:
         if not company:
-            raise ValueError("--company is required with --mode debrief.")
+            raise ValueError(
+                "--company is required for a debrief. Pass --mode meeting for meeting notes."
+            )
         title = title or f"{company} debrief"
     else:
         if company:
@@ -205,7 +214,10 @@ def summarize(
     note_path = out / f"{stem}.md"
 
     if note_path.exists() and not force:
-        raise ValueError(f"Note already exists: {note_path}. Pass --force to overwrite it.")
+        raise ValueError(
+            f"Note already exists: {note_path}. "
+            "Pass --title to save this note under a different name."
+        )
 
     if input_path.suffix.lower() in AUDIO_EXTENSIONS:
         with console.status("Transcribing audio..."):
