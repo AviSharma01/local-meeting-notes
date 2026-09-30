@@ -19,6 +19,10 @@ REQUEST_TIMEOUT_SECONDS = 300
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "meeting_summary_prompt.md"
 DEBRIEF_PROMPT_PATH = PROMPT_PATH.parent / "debrief_prompt.md"
 
+# Ignore proxy environment variables so no proxy can route a transcript off this machine.
+SESSION = requests.Session()
+SESSION.trust_env = False
+
 
 def ollama_base_url() -> str:
     """Read the Ollama base URL from OLLAMA_HOST, allowing only loopback hosts."""
@@ -96,7 +100,7 @@ def _extract(
 
 def _generate(url: str, model: str, prompt: str) -> str:
     try:
-        response = requests.post(
+        response = SESSION.post(
             url,
             json={
                 "model": model,

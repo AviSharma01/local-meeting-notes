@@ -1,3 +1,4 @@
+import re
 from datetime import date
 from pathlib import Path
 
@@ -11,6 +12,13 @@ from src.transcriber import TranscriptSegment
 
 
 runner = CliRunner()
+
+ANSI_CODES = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def squash(text):
+    """Drop ANSI codes, whitespace, and panel side borders, so colour and wrapping never matter."""
+    return "".join(ANSI_CODES.sub("", text).replace("│", "").split())
 
 NOTE_DATE = "2026-01-15"
 SAMPLE_STEM = f"{NOTE_DATE}-sample-meeting"
@@ -67,17 +75,17 @@ def test_preview_command_still_works(sample_transcript):
     )
 
     assert result.exit_code == 0
-    assert "Alex: Let's start with the launch checklist." in result.output
+    assert squash("Alex: Let's start with the launch checklist.") in squash(result.output)
 
 
 def assert_reported_without_traceback(result, expected_message):
     """A handled failure exits 1 with a message and no propagated exception."""
     assert result.exit_code == 1
     assert isinstance(result.exception, SystemExit)
-    assert expected_message in result.output.replace("\n", "")
-    assert "Traceback" not in result.output
-    assert "RuntimeError" not in result.output
-    assert "ValueError" not in result.output
+    assert squash(expected_message) in squash(result.output)
+    assert "Traceback" not in squash(result.output)
+    assert "RuntimeError" not in squash(result.output)
+    assert "ValueError" not in squash(result.output)
 
 
 def test_transcribe_command_reports_a_missing_audio_file(tmp_path):
@@ -108,6 +116,28 @@ def test_summarize_command_reports_a_missing_audio_file(monkeypatch, tmp_path):
     )
 
     assert_reported_without_traceback(result, "Audio file not found:")
+    assert list(tmp_path.glob("*.md")) == []
+
+
+def test_summarize_command_reports_a_missing_transcript_file(monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "extract_meeting", fail_if_called)
+
+    result = runner.invoke(
+        main.app,
+        [
+            "summarize",
+            str(tmp_path / "missing.txt"),
+            "--title",
+            "Sample Meeting",
+            "--out",
+            str(tmp_path),
+            "--date",
+            NOTE_DATE,
+        ],
+    )
+
+    assert_reported_without_traceback(result, "No such file or directory")
+    assert "FileNotFoundError" not in squash(result.output)
     assert list(tmp_path.glob("*.md")) == []
 
 
@@ -160,7 +190,7 @@ def test_summarize_command_reports_an_over_length_transcript(tmp_path):
     )
 
     assert_reported_without_traceback(result, "Transcript is too long")
-    assert "Chunking is not implemented" in result.output.replace("\n", "")
+    assert squash("Chunking is not implemented") in squash(result.output)
     assert not (tmp_path / f"{SAMPLE_STEM}.md").exists()
 
 
@@ -174,17 +204,18 @@ def test_preview_command_reports_a_non_txt_transcript(tmp_path):
 
 
 def test_transcribe_command_help_is_available():
-    result = runner.invoke(main.app, ["transcribe", "--help"])
+    # Narrow terminals truncate help text with "…", so give help a fixed wide width.
+    result = runner.invoke(main.app, ["transcribe", "--help"], env={"COLUMNS": "200"})
 
     assert result.exit_code == 0
-    assert "Transcribe a local audio file" in result.output
-    assert "--out" in result.output
-    assert "--model" in result.output
-    assert "<tiny|base|small|medium>" in result.output
-    assert "[default: base]" in result.output
-    assert "base is faster" in result.output
-    assert "for testing" in result.output
-    assert "small may improve quality" in result.output
+    assert squash("Transcribe a local audio file") in squash(result.output)
+    assert "--out" in squash(result.output)
+    assert "--model" in squash(result.output)
+    assert "<tiny|base|small|medium>" in squash(result.output)
+    assert squash("[default: base]") in squash(result.output)
+    assert squash("base is faster") in squash(result.output)
+    assert squash("for testing") in squash(result.output)
+    assert squash("small may improve quality") in squash(result.output)
 
 
 def test_transcribe_command_rejects_unknown_model(tmp_path):
@@ -194,7 +225,7 @@ def test_transcribe_command_rejects_unknown_model(tmp_path):
     )
 
     assert result.exit_code == 2
-    assert "large" in result.output
+    assert "large" in squash(result.output)
 
 
 def test_transcribe_command_writes_mocked_transcript(monkeypatch, tmp_path):
@@ -229,8 +260,8 @@ def test_transcribe_command_writes_mocked_transcript(monkeypatch, tmp_path):
         "[00:00] First transcribed segment.\n"
         "[00:18] Second transcribed segment."
     )
-    assert "Saved transcript:" in result.output
-    assert "meeting.txt" in result.output
+    assert squash("Saved transcript:") in squash(result.output)
+    assert "meeting.txt" in squash(result.output)
 
 
 def test_transcribe_command_passes_selected_model(monkeypatch, tmp_path):
@@ -291,10 +322,10 @@ def test_summarize_command_generates_and_saves_note(
     assert captured["model"] == "qwen2.5:14b"
     assert "Alex: Let's start with the launch checklist." in captured["transcript"]
     assert "\n\n" not in captured["transcript"]
-    assert "## Summary" in result.output
-    assert "Launch stays on track." in result.output
-    assert f"{SAMPLE_STEM}.md" in result.output
-    assert "No action items found; Action Items.md was not updated." in result.output
+    assert squash("## Summary") in squash(result.output)
+    assert squash("Launch stays on track.") in squash(result.output)
+    assert f"{SAMPLE_STEM}.md" in squash(result.output)
+    assert squash("No action items found; Action Items.md was not updated.") in squash(result.output)
     saved_note = note_path.read_text(encoding="utf-8")
     assert saved_note.startswith("---\n")
     assert "type: meeting-note" in saved_note
@@ -359,7 +390,7 @@ def test_summarize_command_rejects_invalid_date(
     )
 
     assert result.exit_code == 2
-    assert "--date" in result.output
+    assert "--date" in squash(result.output)
     assert list(tmp_path.glob("*.md")) == []
 
 
@@ -408,9 +439,9 @@ def test_summarize_command_transcribes_audio_input(
         "[00:00] Alex: Let's start with the launch checklist.\n"
         "[00:18] Sam: I can own the QA pass by Friday."
     )
-    assert "Saved transcript:" in result.output
+    assert squash("Saved transcript:") in squash(result.output)
     # Rich wraps long paths, so compare against the unwrapped output.
-    assert f"{SAMPLE_STEM}.txt" in result.output.replace("\n", "")
+    assert f"{SAMPLE_STEM}.txt" in squash(result.output)
     saved_note = note_path.read_text(encoding="utf-8")
     assert f"date: {NOTE_DATE}" in saved_note
     assert "source: audio" in saved_note
@@ -501,10 +532,10 @@ def test_summarize_command_refuses_to_overwrite_existing_note(
         ],
     )
 
-    assert second_run.exit_code == 1
-    assert "Note already exists:" in second_run.output
-    assert f"{SAMPLE_STEM}.md" in second_run.output
-    assert "--force" in second_run.output
+    assert_reported_without_traceback(second_run, "Note already exists:")
+    assert squash(
+        f"Note already exists: {note_path}. Pass --force to overwrite it."
+    ) in squash(second_run.output)
     assert note_path.read_text(encoding="utf-8") == note_before
     assert action_items_path.read_text(encoding="utf-8") == action_items_before
 
@@ -548,7 +579,7 @@ def test_summarize_command_force_rewrites_note_and_keeps_action_items(
     assert "Second run." in note_path.read_text(encoding="utf-8")
     assert action_items_path.read_text(encoding="utf-8") == checked_action_items
     assert checked_action_items.count(f"## From [[{SAMPLE_STEM}]]") == 1
-    assert f"Action items for [[{SAMPLE_STEM}]] already exist" in result.output
+    assert squash(f"Action items for [[{SAMPLE_STEM}]] already exist") in squash(result.output)
 
 
 def test_summarize_command_separates_same_title_on_different_dates(
@@ -619,7 +650,7 @@ def test_summarize_command_does_not_link_a_note_to_itself_on_force_rerun(
     saved_note = (tmp_path / f"{SAMPLE_STEM}.md").read_text(encoding="utf-8")
 
     assert result.exit_code == 0
-    assert "No related meetings found." in result.output
+    assert squash("No related meetings found.") in squash(result.output)
     assert f"[[{SAMPLE_STEM}]]" not in saved_note
     assert "## Related Meetings" not in saved_note
 
@@ -714,9 +745,9 @@ def test_summarize_command_appends_action_items(
     assert result.exit_code == 0
     assert note_path.exists()
     assert action_items_path.exists()
-    assert f"{SAMPLE_STEM}.md" in result.output
-    assert "Updated action items:" in result.output
-    assert "Action Items.md" in result.output
+    assert f"{SAMPLE_STEM}.md" in squash(result.output)
+    assert squash("Updated action items:") in squash(result.output)
+    assert squash("Action Items.md") in squash(result.output)
 
     action_items_content = action_items_path.read_text(encoding="utf-8")
     assert f"## From [[{SAMPLE_STEM}]]" in action_items_content
@@ -728,6 +759,44 @@ def test_summarize_command_appends_action_items(
     assert "# Meeting Notes: Sample Meeting" in saved_note
     assert "- [ ] Send launch notes — Owner: Avi — Due: Friday" in saved_note
     assert "- Action items created: 1" in saved_note
+
+
+def test_summarize_command_prints_bracketed_text_unchanged(
+    monkeypatch, tmp_path, sample_transcript
+):
+    summary = "Priya [laughs] said [/b] the launch is fine."
+    bracketed_item = ActionItem(task="Send the [draft] deck", owner="Avi")
+    monkeypatch.setattr(
+        main,
+        "extract_meeting",
+        lambda transcript, model: make_extraction(summary, [bracketed_item]),
+    )
+    title = "Sample [Draft] Meeting"
+
+    result = runner.invoke(
+        main.app,
+        [
+            "summarize",
+            str(sample_transcript),
+            "--title",
+            title,
+            "--out",
+            str(tmp_path),
+            "--date",
+            NOTE_DATE,
+        ],
+    )
+
+    stem = note_stem(date(2026, 1, 15), title)
+    output = squash(result.output)
+
+    assert result.exit_code == 0, result.output
+    assert summary in (tmp_path / f"{stem}.md").read_text(encoding="utf-8")
+    assert squash(summary) in output
+    assert squash(title) in output
+    assert "Updatedactionitems:" in output
+    action_items_content = (tmp_path / "Action Items.md").read_text(encoding="utf-8")
+    assert "- [ ] Send the [draft] deck — Owner: Avi" in action_items_content
 
 
 def test_summarize_command_does_not_create_action_items_when_none_found(
@@ -758,8 +827,8 @@ def test_summarize_command_does_not_create_action_items_when_none_found(
     assert result.exit_code == 0
     assert (tmp_path / f"{SAMPLE_STEM}.md").exists()
     assert not (tmp_path / "Action Items.md").exists()
-    assert f"{SAMPLE_STEM}.md" in result.output
-    assert "No action items found; Action Items.md was not updated." in result.output
+    assert f"{SAMPLE_STEM}.md" in squash(result.output)
+    assert squash("No action items found; Action Items.md was not updated.") in squash(result.output)
 
 
 def test_summarize_command_does_not_load_related_notes_without_flag(
@@ -789,7 +858,7 @@ def test_summarize_command_does_not_load_related_notes_without_flag(
     )
 
     assert result.exit_code == 0
-    assert "No related meetings found." not in result.output
+    assert squash("No related meetings found.") not in squash(result.output)
 
 
 def test_summarize_command_link_related_adds_related_meetings_section(
@@ -835,7 +904,7 @@ Discussed launch QA.
     saved_note = (tmp_path / f"{SAMPLE_STEM}.md").read_text(encoding="utf-8")
 
     assert result.exit_code == 0
-    assert "Added related meetings: 1" in result.output
+    assert squash("Added related meetings: 1") in squash(result.output)
     assert "## Related Meetings" in saved_note
     assert "[[sample-retro]]" in saved_note
 
@@ -874,7 +943,7 @@ def test_summarize_command_link_related_with_no_matches_adds_no_empty_section(
     saved_note = (tmp_path / f"{SAMPLE_STEM}.md").read_text(encoding="utf-8")
 
     assert result.exit_code == 0
-    assert "No related meetings found." in result.output
+    assert squash("No related meetings found.") in squash(result.output)
     assert "## Related Meetings" not in saved_note
 
 
@@ -1001,7 +1070,7 @@ def test_summarize_debrief_without_company_fails_clearly(
     result = run_debrief(tmp_path, sample_transcript, "--title", "Round One")
 
     assert result.exit_code == 1
-    assert "--company is required with --mode debrief." in result.output
+    assert squash("--company is required with --mode debrief.") in squash(result.output)
     assert list(tmp_path.glob("*.md")) == []
 
 
@@ -1015,7 +1084,7 @@ def test_summarize_meeting_without_title_fails_clearly(
     )
 
     assert result.exit_code == 1
-    assert "--title is required in meeting mode." in result.output
+    assert squash("--title is required in meeting mode.") in squash(result.output)
     assert list(tmp_path.glob("*.md")) == []
 
 
@@ -1037,7 +1106,7 @@ def test_summarize_meeting_rejects_company(monkeypatch, tmp_path, sample_transcr
     )
 
     assert result.exit_code == 1
-    assert "--company is only used with --mode debrief." in result.output
+    assert squash("--company is only used with --mode debrief.") in squash(result.output)
     assert list(tmp_path.glob("*.md")) == []
 
 
@@ -1060,4 +1129,4 @@ def test_summarize_debrief_appends_commitments_once_after_rerun(
     assert action_items.count("Send portfolio link") == 1
     assert "- [ ] Get back about the next round — Owner: Priya Raman — Due: within a week" in action_items
     assert f"  - Source: [[{DEBRIEF_STEM}]]" in action_items
-    assert f"Action items for [[{DEBRIEF_STEM}]] already exist" in second.output
+    assert squash(f"Action items for [[{DEBRIEF_STEM}]] already exist") in squash(second.output)

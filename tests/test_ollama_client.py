@@ -8,6 +8,7 @@ from src.ollama_client import (
     DEFAULT_MODEL,
     NUM_CTX,
     REQUEST_TIMEOUT_SECONDS,
+    SESSION,
     extract_debrief,
     extract_meeting,
     ollama_base_url,
@@ -37,7 +38,7 @@ class FakeResponse:
 
 
 def fake_post_returning(*texts):
-    """Return a fake requests.post that replies with each text in turn and records calls."""
+    """Return a fake SESSION.post that replies with each text in turn and records calls."""
     calls = []
     remaining = list(texts)
 
@@ -55,7 +56,7 @@ def clear_ollama_host(monkeypatch):
 
 def test_extract_meeting_sends_json_request_to_local_ollama(monkeypatch):
     fake_post, calls = fake_post_returning(json.dumps(VALID_EXTRACTION))
-    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(SESSION, "post", fake_post)
 
     extract_meeting("[00:12] Avi: Let's keep the launch date.")
 
@@ -71,7 +72,7 @@ def test_extract_meeting_sends_json_request_to_local_ollama(monkeypatch):
 
 def test_extract_meeting_passes_selected_model(monkeypatch):
     fake_post, calls = fake_post_returning(json.dumps(VALID_EXTRACTION))
-    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(SESSION, "post", fake_post)
 
     extract_meeting("Avi: Hello", model="test-model")
 
@@ -81,7 +82,7 @@ def test_extract_meeting_passes_selected_model(monkeypatch):
 def test_extract_meeting_includes_transcript_in_prompt(monkeypatch):
     transcript = "Avi: This exact transcript text should be included."
     fake_post, calls = fake_post_returning(json.dumps(VALID_EXTRACTION))
-    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(SESSION, "post", fake_post)
 
     extract_meeting(transcript)
 
@@ -91,7 +92,7 @@ def test_extract_meeting_includes_transcript_in_prompt(monkeypatch):
 
 def test_extract_meeting_returns_validated_extraction(monkeypatch):
     fake_post, _ = fake_post_returning(json.dumps(VALID_EXTRACTION))
-    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(SESSION, "post", fake_post)
 
     extraction = extract_meeting("Avi: We discussed launch planning.")
 
@@ -100,7 +101,7 @@ def test_extract_meeting_returns_validated_extraction(monkeypatch):
 
 def test_extract_meeting_retries_once_with_error_after_malformed_json(monkeypatch):
     fake_post, calls = fake_post_returning("{not json", json.dumps(VALID_EXTRACTION))
-    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(SESSION, "post", fake_post)
 
     extraction = extract_meeting("Avi: Hello")
 
@@ -115,7 +116,7 @@ def test_extract_meeting_retries_once_with_error_after_malformed_json(monkeypatc
 
 def test_extract_meeting_malformed_json_twice_raises_clear_error(monkeypatch):
     fake_post, calls = fake_post_returning("{not json", "still not json")
-    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(SESSION, "post", fake_post)
 
     with pytest.raises(RuntimeError, match="invalid meeting JSON after one retry"):
         extract_meeting("Avi: Hello")
@@ -128,7 +129,7 @@ def test_extract_meeting_schema_mismatch_twice_raises_clear_error(monkeypatch):
         json.dumps({"decisions": []}),
         json.dumps({"decisions": []}),
     )
-    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(SESSION, "post", fake_post)
 
     with pytest.raises(RuntimeError, match="invalid meeting JSON after one retry"):
         extract_meeting("Avi: Hello")
@@ -140,7 +141,7 @@ def test_extract_meeting_schema_mismatch_twice_raises_clear_error(monkeypatch):
 def test_extract_meeting_accepts_reply_missing_list_fields_without_retry(monkeypatch):
     reply = {key: value for key, value in VALID_EXTRACTION.items() if key != "needs_review"}
     fake_post, calls = fake_post_returning(json.dumps(reply))
-    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(SESSION, "post", fake_post)
 
     extraction = extract_meeting("Avi: Hello")
 
@@ -152,7 +153,7 @@ def test_extract_meeting_over_budget_transcript_raises_without_calling_ollama(mo
     def fail_if_called(url, json, timeout):
         raise AssertionError("Ollama should not be called")
 
-    monkeypatch.setattr(requests, "post", fail_if_called)
+    monkeypatch.setattr(SESSION, "post", fail_if_called)
     transcript = "Avi: word " * 4000
 
     with pytest.raises(ValueError, match="Transcript is too long.*Chunking is not implemented"):
@@ -163,7 +164,7 @@ def test_extract_meeting_failed_request_raises_clear_error(monkeypatch):
     def fake_post(url, json, timeout):
         raise requests.RequestException("connection refused")
 
-    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(SESSION, "post", fake_post)
 
     with pytest.raises(RuntimeError, match="Ollama request failed"):
         extract_meeting("Avi: Hello")
@@ -173,7 +174,7 @@ def test_extract_meeting_missing_response_raises_clear_error(monkeypatch):
     def fake_post(url, json, timeout):
         return FakeResponse({"done": True})
 
-    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(SESSION, "post", fake_post)
 
     with pytest.raises(RuntimeError, match="Ollama returned an invalid response"):
         extract_meeting("Avi: Hello")
@@ -190,7 +191,7 @@ def test_extract_meeting_empty_transcript_raises_value_error():
 def test_extract_meeting_uses_ollama_host_from_environment(monkeypatch):
     monkeypatch.setenv("OLLAMA_HOST", "http://127.0.0.1:9999")
     fake_post, calls = fake_post_returning(json.dumps(VALID_EXTRACTION))
-    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(SESSION, "post", fake_post)
 
     extract_meeting("Avi: Hello")
 
@@ -246,13 +247,38 @@ def test_ollama_base_url_rejects_non_loopback_hosts(monkeypatch, host):
         ollama_base_url()
 
 
+def test_extract_meeting_ignores_proxy_environment_variables(monkeypatch):
+    for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
+        monkeypatch.setenv(name, "http://proxy.invalid:3128")
+    for name in ("NO_PROXY", "no_proxy"):
+        monkeypatch.delenv(name, raising=False)
+    # macOS system settings bypass proxies for localhost, which would hide a regression.
+    monkeypatch.setattr(requests.utils, "proxy_bypass", lambda host: False)
+    captured = {}
+
+    def fake_send(adapter, request, **kwargs):
+        captured["url"] = request.url
+        captured["proxies"] = kwargs["proxies"]
+        response = requests.Response()
+        response.status_code = 200
+        response._content = json.dumps({"response": json.dumps(VALID_EXTRACTION)}).encode()
+        return response
+
+    monkeypatch.setattr(requests.adapters.HTTPAdapter, "send", fake_send)
+
+    extract_meeting("Avi: Hello")
+
+    assert captured["url"] == "http://localhost:11434/api/generate"
+    assert captured["proxies"] == {}
+
+
 def test_extract_meeting_rejects_remote_host_without_calling_ollama(monkeypatch):
     monkeypatch.setenv("OLLAMA_HOST", "http://example.com:11434")
 
     def fail_if_called(url, json, timeout):
         raise AssertionError("Ollama should not be called")
 
-    monkeypatch.setattr(requests, "post", fail_if_called)
+    monkeypatch.setattr(SESSION, "post", fail_if_called)
 
     with pytest.raises(ValueError, match="OLLAMA_HOST must point to this machine"):
         extract_meeting("Avi: Hello")
@@ -271,7 +297,7 @@ VALID_DEBRIEF = {
 def test_extract_debrief_uses_debrief_prompt_and_returns_validated_extraction(monkeypatch):
     memo = "[00:05] I spoke with Priya Raman, the analytics manager."
     fake_post, calls = fake_post_returning(json.dumps(VALID_DEBRIEF))
-    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(SESSION, "post", fake_post)
 
     extraction = extract_debrief(memo, model="test-model")
 
@@ -288,7 +314,7 @@ def test_extract_debrief_uses_debrief_prompt_and_returns_validated_extraction(mo
 
 def test_extract_debrief_retries_once_then_raises_clear_error(monkeypatch):
     fake_post, calls = fake_post_returning("{not json", json.dumps({"weak_spots": []}))
-    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(SESSION, "post", fake_post)
 
     with pytest.raises(RuntimeError, match="invalid debrief JSON after one retry"):
         extract_debrief("I spoke with Priya.")

@@ -6,6 +6,7 @@ from pathlib import Path
 import typer
 from rich.console import Console
 from rich.panel import Panel
+from rich.text import Text
 
 from src.action_items import action_items_section_exists, append_action_items
 from src.note_writer import note_stem, write_markdown_note
@@ -27,7 +28,8 @@ from src.transcriber import (
 
 
 app = typer.Typer(help="Local-first meeting notes CLI.")
-console = Console()
+# Markup is off so transcript and model text such as "[laughs]" prints unchanged.
+console = Console(markup=False)
 
 WHISPER_MODEL_HELP = (
     "Local faster-whisper model to use. "
@@ -54,7 +56,7 @@ def report_errors(command):
     def wrapper(*args, **kwargs):
         try:
             return command(*args, **kwargs)
-        except (RuntimeError, ValueError) as error:
+        except (RuntimeError, ValueError, OSError) as error:
             console.print(str(error), style="red")
             raise typer.Exit(code=1) from error
 
@@ -123,7 +125,7 @@ def preview(transcript_path: Path) -> None:
     console.print(
         Panel(
             cleaned_transcript,
-            title=str(transcript_path),
+            title=Text(str(transcript_path)),
             border_style="cyan",
         )
     )
@@ -203,9 +205,7 @@ def summarize(
     note_path = out / f"{stem}.md"
 
     if note_path.exists() and not force:
-        console.print(f"Note already exists: {note_path}")
-        console.print("Pass --force to overwrite it.")
-        raise typer.Exit(code=1)
+        raise ValueError(f"Note already exists: {note_path}. Pass --force to overwrite it.")
 
     if input_path.suffix.lower() in AUDIO_EXTENSIONS:
         with console.status("Transcribing audio..."):
@@ -269,7 +269,7 @@ def summarize(
     console.print(
         Panel(
             notes,
-            title=title,
+            title=Text(title),
             border_style="green",
         )
     )

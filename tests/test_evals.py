@@ -36,6 +36,11 @@ MEETING_EXPECTED = {
 VALID_MEETING = {"summary": "Sync.", "action_items": [{"task": "Update the runbook"}]}
 
 
+@pytest.fixture(autouse=True)
+def clear_ollama_host(monkeypatch):
+    monkeypatch.delenv("OLLAMA_HOST", raising=False)
+
+
 def fail_if_called(*args, **kwargs):
     raise AssertionError("Ollama should not be called")
 
@@ -64,7 +69,7 @@ def write_case(folder, expected):
 
 
 def test_score_case_scores_a_fixed_extraction_against_expected_json(tmp_path, monkeypatch):
-    monkeypatch.setattr(requests, "post", fail_if_called)
+    monkeypatch.setattr(ollama_client.SESSION, "post", fail_if_called)
     case_dir = tmp_path / "case"
     case_dir.mkdir()
     (case_dir / "expected.json").write_text(json.dumps(DEBRIEF_EXPECTED))
@@ -134,7 +139,7 @@ def test_failed_extraction_scores_nothing_extracted():
 
 def test_run_case_reports_a_retry(tmp_path, monkeypatch):
     monkeypatch.setattr(
-        requests, "post", fake_post_returning("{not json", json.dumps(VALID_MEETING))
+        ollama_client.SESSION, "post", fake_post_returning("{not json", json.dumps(VALID_MEETING))
     )
     case_dir = write_case(tmp_path / "sync", MEETING_EXPECTED)
 
@@ -147,7 +152,7 @@ def test_run_case_reports_a_retry(tmp_path, monkeypatch):
 
 
 def test_run_case_marks_invalid_json_after_retry_as_failed(tmp_path, monkeypatch):
-    monkeypatch.setattr(requests, "post", fake_post_returning("{not json", "{still not"))
+    monkeypatch.setattr(ollama_client.SESSION, "post", fake_post_returning("{not json", "{still not"))
     case_dir = write_case(tmp_path / "sync", MEETING_EXPECTED)
 
     result = run.run_case(case_dir, "test-model", private=False)
@@ -160,7 +165,7 @@ def test_run_case_raises_when_ollama_is_unreachable(tmp_path, monkeypatch):
     def fake_post(url, json, timeout):
         raise requests.RequestException("connection refused")
 
-    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(ollama_client.SESSION, "post", fake_post)
     case_dir = write_case(tmp_path / "sync", MEETING_EXPECTED)
 
     with pytest.raises(RuntimeError, match="Ollama request failed"):
